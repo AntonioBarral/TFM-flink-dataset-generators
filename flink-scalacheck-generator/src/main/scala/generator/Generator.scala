@@ -6,19 +6,20 @@ import org.scalacheck.Gen
 
 object Generator {
 
-  def generateSeqGenerator (numElements: Int, numPartitions: Int, g: Seq[Int]): Gen[Seq[Int]] = {
-    var seqGen = Gen.listOfN()
-
+  def generateDatasetGenerator(numElements: Int, numPartitions: Int, g: Gen[Int]): Gen[DataSet[Int]] = {
+    // set up the execution environment
+    val env = ExecutionEnvironment.getExecutionEnvironment
+    //env.fromCollection(Seq(1,2,3,4,5,6))
+    env.fromCollection(Gen.listOfN(numElements, g))
+    env.setParallelism(numPartitions)
   }
 
-  /*def generateDatasetGenerator(numElements: Int, numPartitions: Int, g: Gen[T]): Gen[DataSet[T]] = {
-
-
-  }*/
-
   def main(args: Array[String]): Unit = {
+    //Intento de funcion que me piden
     val numPartitions = 4
     val numElements = 100000
-    val sequence = Seq(1,2,3,4,5,6,7,8,9)
+    val genVar = Gen.choose(1, 200000) // -> Gen[Int]
+
+    generateDatasetGenerator(numElements, numPartitions, genVar)
   }
 }
