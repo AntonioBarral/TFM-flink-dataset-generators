@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="sbt: org.apache.flink:flink-streaming-scala_2.12:1.9.1:jar">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../.ivy2/cache/org.apache.flink/flink-streaming-scala_2.12/jars/flink-streaming-scala_2.12-1.9.1.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../.ivy2/cache/org.apache.flink/flink-streaming-scala_2.12/srcs/flink-streaming-scala_2.12-1.9.1-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

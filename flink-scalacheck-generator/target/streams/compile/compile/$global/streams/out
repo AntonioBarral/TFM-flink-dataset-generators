@@ -1,0 +1,12 @@
+[0m[[0m[0mdebug[0m] [0m[0mAcquiring lock on file /home/antonio/flink-scalacheck-generator/project/target/.sbt-compilation-infos/root-compile/.sbt-idea-lock ...[0m
+[0m[[0m[31merror[0m] [0m[0m/home/antonio/flink-scalacheck-generator/src/main/scala/generator/Generator.scala:4:12: object scalacheck is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.scalacheck.Gen[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/antonio/flink-scalacheck-generator/src/main/scala/generator/Generator.scala:9:81: not found: type Gen[0m
+[0m[[0m[31merror[0m] [0m[0m  def generateSeqGenerator (numElements: Int, numPartitions: Int, g: Seq[Int]): Gen[Seq[Int]] = {[0m
+[0m[[0m[31merror[0m] [0m[0m                                                                                ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/antonio/flink-scalacheck-generator/src/main/scala/generator/Generator.scala:10:18: not found: value Gen[0m
+[0m[[0m[31merror[0m] [0m[0m    var seqGen = Gen.listOfN()[0m
+[0m[[0m[31merror[0m] [0m[0m                 ^[0m
+[0m[[0m[31merror[0m] [0m[0mthree errors found[0m
+[0m[[0m[0mdebug[0m] [0m[0mReleasing lock on file /home/antonio/flink-scalacheck-generator/project/target/.sbt-compilation-infos/root-compile/.sbt-idea-lock.[0m
