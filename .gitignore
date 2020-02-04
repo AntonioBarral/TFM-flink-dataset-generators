@@ -5,6 +5,7 @@
 *.iml
 *.ipr
 *.iws
+flink-scalacheck-generator/.idea/
 .idea
 out
 .cache/
@@ -19,9 +20,11 @@ src_managed/
 project/boot/
 project/plugins/project/
 logs/
+flink-scalacheck-generator/project/
 project/*-shim.sbt
 project/project/
 project/target/
+flink-scalacheck-generator/target/
 target/
 .scala_dependencies
 .worksheet
