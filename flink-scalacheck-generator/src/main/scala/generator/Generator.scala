@@ -19,7 +19,7 @@ object Generator {
           element
         }
 
-    print(finalDataSet.print())
+    //print(finalDataSet.print())
     finalDataSet
   }
 
@@ -28,11 +28,12 @@ object Generator {
     //Intento de funcion que me piden
     implicit val env = ExecutionEnvironment.getExecutionEnvironment
     val numPartitions = 4
-    val numElements = 100
+    val numElements = 1000000
     val genVar = Gen.choose(1, 20) // -> Gen[Int]
 
     env.setParallelism(numPartitions) // Create a parallelism level equal to the num of partitions we want to create
 
-    generateDataSetGenerator(numElements, numPartitions, genVar)
+    val gen_dataset : DataSet[Int] = generateDataSetGenerator(numElements, numPartitions, genVar)
+    print(gen_dataset.collect().length)
   }
 }
