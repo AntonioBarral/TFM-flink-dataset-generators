@@ -29,15 +29,28 @@ object Generator {
 
   def main(args: Array[String]): Unit = {
     //Starts program. Set needed values
+    val notArgsMessage =
+      """This program needs the following arguments:
+      numPartitions -> integer (compulsory)
+      numElements -> integer (compulsory)
+      """
+
+    if (args.length == 0) {
+      print(notArgsMessage)
+      return
+    }
+
+
     implicit val env = ExecutionEnvironment.getExecutionEnvironment
-    val numPartitions = 3
-    val numElements = 10000
+    val numPartitions = args(0).toInt
+    val numElements = args(1).toInt
     val genVar = Gen.choose(1, 20) // -> Gen[Int]
+
 
     //env.setParallelism(numPartitions) // Create a parallelism level equal to the num of partitions we want to create
 
     val gen_dataset: Gen[DataSet[Int]] = generateDataSetGenerator(numElements, numPartitions, genVar)
-    print(gen_dataset.sample.get.print())
+    print(gen_dataset.sample.get.)
   }
 }
 
