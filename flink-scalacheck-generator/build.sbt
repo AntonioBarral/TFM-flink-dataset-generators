@@ -9,7 +9,7 @@ version := "1.3.7"
 
 organization := "org.example"
 
-val flinkVersion = "1.9.1"
+val flinkVersion = "1.10.0"
 
 libraryDependencies ++= Seq(
   "org.apache.flink" %% "flink-scala" % flinkVersion,
@@ -20,3 +20,6 @@ libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % 
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.1"
 libraryDependencies += "org.slf4j" % "slf4j-simple" % "1.6.4"
 
+libraryDependencies ++= Seq("org.specs2" %% "specs2-core" % "4.8.3" % "test")
+
+scalacOptions in Test ++= Seq("-Yrangepos")
