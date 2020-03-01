@@ -15,12 +15,12 @@ object Generator {
       .map(xs => (xs % 3, 0)) //Create a tuple dataset. First element is partition number. Second is trivial now. Could be the seed in the future
 
     val finalDataSet: DataSet[A] = indexes
-      .partitionByRange(0) //Send each list to the partition with value equal to first position of the tuple
+      .partitionByHash(0) //Send each list to the partition with value equal to first position of the tuple
       .flatMap { _ =>
         val element: List[A] = Gen.listOfN(numElements, g).sample.getOrElse(Nil)
         element
       }
-      .setParallelism(numPartitions)
+      .setParallelism(3)
 
     finalDataSet
   }
@@ -46,7 +46,6 @@ object Generator {
 
 
     implicit val env = ExecutionEnvironment.getExecutionEnvironment
-
     val genVar = Gen.choose(1, 20) // -> Gen[Int]
 
     val gen_dataset: Gen[DataSet[Int]] = generateDataSetGenerator(numElements, numPartitions, genVar)
