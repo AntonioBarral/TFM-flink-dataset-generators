@@ -28,3 +28,5 @@ flink-scalacheck-generator/target/
 target/
 .scala_dependencies
 .worksheet
+flink-scalacheck-generator/src/main/scala/META-INF/
+flink-scalacheck-generator/src/test/test-scripts/
