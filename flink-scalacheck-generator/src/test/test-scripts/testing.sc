@@ -34,9 +34,5 @@ print(squares)
 var numElements = 1000
 var genVar = Gen.choose(10, 20) // -> Gen[Int]
 
-var genSeq = Gen.listOfN(1000, genVar) // -> Gen[Seq[Int]] Esto es una Seq o una list??? Segun docu es List: def listOfN[T](n: Int, g: Gen[T]): Gen[List[T]]
+var seqSample = Gen.listOfN(1000, genVar).sample.get // -> Gen[Seq[Int]] Esto es una Seq o una list??? Segun docu es List: def listOfN[T](n: Int, g: Gen[T]): Gen[List[T]]
 
-def generateSeqGenerator (numElements: Int, numPartitions: Int, g: Seq[Int]): Gen[Seq[Int]] = {
-  var seqGen = Gen.listOfN(numElements, g)
-
-}
