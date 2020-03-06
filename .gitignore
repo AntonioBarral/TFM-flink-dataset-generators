@@ -30,3 +30,4 @@ target/
 .worksheet
 flink-scalacheck-generator/src/main/scala/META-INF/
 flink-scalacheck-generator/src/test/test-scripts/
+flink-scalacheck-generator/src/test/resources/
