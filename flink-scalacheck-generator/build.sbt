@@ -18,7 +18,7 @@ libraryDependencies ++= Seq(
 // Libraries for ScalaCheck
 libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.1"
-libraryDependencies += "org.slf4j" % "slf4j-simple" % "1.6.4"
+//libraryDependencies += "org.slf4j" % "slf4j-simple" % "1.6.4"
 
 libraryDependencies ++= Seq("org.specs2" %% "specs2-core" % "4.8.3" % "test")
 
