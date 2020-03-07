@@ -1,8 +1,7 @@
 package generator
 
 import java.lang
-import java.io.File
-import java.io.PrintWriter
+import java.io.{BufferedWriter, File, FileWriter}
 import java.util.concurrent.TimeUnit
 import java.time.format.DateTimeFormatter
 
@@ -20,25 +19,33 @@ import scala.reflect.ClassTag
 
 
 class FaultTolerantSeeds extends RichMapPartitionFunction[Int, Int] {
-  val filesPath = "/home/antonio/TFM/Code/TFM-flink-generators/flink-scalacheck-generator/src/test/resources/"
-  val date = java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH:mm:ss"))
+
+  private val filesPath = "/home/antonio/TFM/Code/TFM-flink-generators/flink-scalacheck-generator/src/test/resources/"
+  private val date = java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH:mm:ss"))
+
 
   override def mapPartition(values: lang.Iterable[Int], out: Collector[Int]): Unit = {
-      val attempt = getRuntimeContext().getAttemptNumber
-      val task = getRuntimeContext().getIndexOfThisSubtask()
-      var ownElements = List.empty[Int]
-      val currentFile = filesPath + date + "_worker_" + task + "_attempt_" + attempt + ".txt"
-      val f = new File(currentFile)
-      val print_Writer = new PrintWriter(f)
+    val attempt = getRuntimeContext().getAttemptNumber
+    val task = getRuntimeContext().getIndexOfThisSubtask()
+    var ownElements = List.empty[Int]
+    val currentFile = filesPath + date + "_worker_" + task + "_attempt_" + attempt + ".txt"
+    val f = new File(currentFile)
+    val writer = new BufferedWriter(new FileWriter(f))
 
-      values.forEach({
-        xs =>
-          ownElements :+= xs
+    values.forEach({
+      xs =>
+        ownElements :+= xs
 
-      })
-      print_Writer.write(ownElements.toString())
-      print_Writer.close()
-      out.collect(1)
+    })
+    ownElements.sorted.foreach({xs => writer.write(xs.toString)})
+    writer.flush()
+    writer.close()
+
+    Thread.sleep(1000)
+
+    throw new Exception("Testing fault tolerance")
+
+
 
   }
 }
@@ -46,9 +53,9 @@ class FaultTolerantSeeds extends RichMapPartitionFunction[Int, Int] {
 
 object Generator {
 
-  def generateDataSetGenerator[A: ClassTag : TypeInformation](numElements: Int, numPartitions: Int, g: Gen[A])(implicit env: ExecutionEnvironment,  randomIntGen: scala.util.Random): Gen[DataSet[A]] = {
+  def generateDataSetGenerator[A: ClassTag : TypeInformation](numElements: Int, numPartitions: Int, g: Gen[A], seeds: List[Int])(implicit env: ExecutionEnvironment,  randomIntGen: scala.util.Random): Gen[DataSet[A]] = {
 
-    val indexes: DataSet[(Int, Int)] = env.fromElements((0 to numPartitions -1): _*)
+    val indexes: DataSet[(Int, Int)] = env.fromElements(seeds: _*)
       .map(xs => (xs % 3, xs/*randomIntGen.nextInt()*/)) //Create a tuple dataset. First element is partition number. Second is trivial now. Could be the seed in the future
 
 
@@ -73,6 +80,8 @@ object Generator {
       """
     var numPartitions = 10
     var numElements = 2
+    val seeds = List.range(0, numPartitions)
+
     if (args.length == 0) {
       print(notArgsMessage)
       //return
@@ -86,13 +95,13 @@ object Generator {
     implicit val randomIntGenerator = scala.util.Random
 
     env.setRestartStrategy(RestartStrategies.fixedDelayRestart(
-      3, // number of restart attempts
+      2, // number of restart attempts
       Time.of(2, TimeUnit.SECONDS) // delay
     ))
 
     val genVar = Gen.choose(1, 20) // -> Gen[Int]
 
-    val gen_dataset: Gen[DataSet[Int]] = generateDataSetGenerator(numElements, numPartitions, genVar)
+    val gen_dataset: Gen[DataSet[Int]] = generateDataSetGenerator(numElements, numPartitions, genVar, seeds)
     val gen_dataset_sample : DataSet[Int] = gen_dataset.sample.get
 
     gen_dataset_sample.mapPartition(new FaultTolerantSeeds()).count()
