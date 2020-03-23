@@ -1,5 +1,3 @@
-import java.io.File
-
 import scala.io.Source
 import java.util.concurrent.TimeUnit
 
@@ -15,31 +13,31 @@ import org.scalacheck.Gen
 
 import org.specs2.specification.BeforeAll
 
-
-
-class SeedTestSpecs extends  org.specs2.mutable.Specification with BeforeAll {
+class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest with BeforeAll {
 
   implicit val typeInfo: TypeInformation[Int] = TypeInformation.of(classOf[Int])
 
-  private val randomIntGenerator = scala.util.Random
+  override val elements = 3
+  override val partitions = 3
+
+  override val seeds = List.range(0, partitions)
+  //override val seeds = List.range(0, 300)
   private val gen = Gen.choose(0,20)
-  private val elements = 3
-  private val partitions = 3
+  private val randomIntGenerator = scala.util.Random
   private val attempts = 3
-  private val seeds = List.range(0, partitions)
 
   private var generatedValues : (Map[Int, List[String]], Array[Array[List[String]]])
     = (Map(), Array())
 
 
-  def createGenerator(): Unit = {
+   def createGenerator(limitRandomInt:Int): Unit = {
     Generator.env.setRestartStrategy(RestartStrategies.fixedDelayRestart(
       2, // number of restart attempts
       Time.of(2, TimeUnit.SECONDS) // delay
     ))
 
     //Initialize seed list
-    seeds.foreach({_ => randomIntGenerator.nextInt(partitions * 1000)})
+    seeds.foreach({_ => randomIntGenerator.nextInt(limitRandomInt)})
 
     val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen, seeds)
     genDataset.sample.get.mapPartition(new FaultTolerantSeeds[Int]).count()
@@ -74,7 +72,7 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with BeforeAll {
     FilesPath.initFilePathMatrix(partitions, attempts)
 
     try {
-      createGenerator()
+      createGenerator(partitions * 1000)
     } catch {
       case _: java.lang.Exception =>
 
