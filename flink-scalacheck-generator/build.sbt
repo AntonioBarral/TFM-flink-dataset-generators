@@ -21,10 +21,10 @@ libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.1"
 //libraryDependencies += "org.slf4j" % "slf4j-simple" % "1.6.4"
 
 libraryDependencies ++= Seq(
-  "org.specs2" %% "specs2-core" % "4.8.3" % "test",
+  "org.specs2" %% "specs2-core" % "4.6.0" % "test",
   // the scalacheck lib will come as a transitive
   // dependency
-  "org.specs2" %% "specs2-scalacheck" % "4.8.3" % "test"
+  "org.specs2" %% "specs2-scalacheck" % "4.6.0" % "test"
 )
 
 scalacOptions in Test ++= Seq("-Yrangepos")
