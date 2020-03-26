@@ -9,6 +9,7 @@ import org.apache.flink.api.common.time.Time
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala.ExecutionEnvironment
 import org.scalacheck.Gen
+import org.specs2.matcher.MatchResult
 import org.specs2.specification.BeforeAll
 
 class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest with BeforeAll {
@@ -22,7 +23,6 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
 
   override val seed = 10
   private val gen = Gen.choose(0,20)
-  private val randomIntGenerator = scala.util.Random
   private val attempts = 3
 
   private var generatedValues : (Map[Int, List[String]], Array[Array[List[String]]])
@@ -45,9 +45,9 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
     var datasetValues: Map[Int, List[String]] = Map()
     val partitionValues = Array.ofDim[List[String]](partitions, attempts)
 
-    for (attempt <- 0 to attempts-1) {
+    for (attempt <- 0 until attempts) {
       datasetValues += (attempt -> List.empty[String])
-      for (partition <- 0 to partitions-1) {
+      for (partition <- 0 until partitions) {
 
         val values  = {
           val src = Source.fromFile(tempPathMatrix(partition)(attempt))
@@ -56,7 +56,7 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
           line
         }.toList
 
-        datasetValues = datasetValues.updated(attempt, datasetValues.get(attempt).get ++ values)
+        datasetValues = datasetValues.updated(attempt, datasetValues(attempt) ++ values)
         partitionValues(partition)(attempt) = values
       }
     }
@@ -65,15 +65,14 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
 
 
 
-  def beforeAll() = {
+  def beforeAll(): Unit = {
     FilesPath.initFilePathMatrix(partitions, attempts)
 
     try {
       createGenerator()
     } catch {
-      case _: java.lang.Exception => {
+      case _: java.lang.Exception =>
         println("Restart strategy failed")
-      }
 
     }finally {
       generatedValues = getTestGeneratedValues(FilesPath.getPathMatrix())
@@ -86,7 +85,7 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
  The whole dataset is equal in each attempt $datasetByAttempt
 """
 
-  def dataByWorker = {
+  def dataByWorker: MatchResult[Any] = {
     /* Map structure:
     {
        worker1: List("1234567","1234567","1234567"),
@@ -94,9 +93,9 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
        ...
     }*/
     val partitionValues = generatedValues._2
-    for (partition <- 0 to partitions-1) {
-      for (attempt <- 0 to attempts - 1) {
-        partitionValues(partition)(attempt) must containTheSameElementsAs(partitionValues(partition)((attempt+1) % partitionValues(partition).size))
+    for (partition <- 0 until partitions) {
+      for (attempt <- 0 until attempts) {
+        partitionValues(partition)(attempt) must containTheSameElementsAs(partitionValues(partition)((attempt+1) % partitionValues(partition).length))
       }
     }
   ok
@@ -104,7 +103,7 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
 
 
 
-  def datasetByAttempt = {
+  def datasetByAttempt: MatchResult[Any] = {
     /* Map structure:
     {
        attempt0: List(valuesPart0, valuesPart1, etc... ),
