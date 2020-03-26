@@ -4,24 +4,23 @@ import java.util.concurrent.TimeUnit
 import generator.Generator
 import generator.Generator.FaultTolerantSeeds
 import utilities.FilesPath
-
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.time.Time
 import org.apache.flink.api.common.typeinfo.TypeInformation
-
+import org.apache.flink.api.scala.ExecutionEnvironment
 import org.scalacheck.Gen
-
 import org.specs2.specification.BeforeAll
 
 class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest with BeforeAll {
 
   implicit val typeInfo: TypeInformation[Int] = TypeInformation.of(classOf[Int])
+  implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
+
 
   override val elements = 3
   override val partitions = 3
 
-  override val seeds = List.range(0, partitions)
-  //override val seeds = List.range(0, 300)
+  override val seed = 10
   private val gen = Gen.choose(0,20)
   private val randomIntGenerator = scala.util.Random
   private val attempts = 3
@@ -30,16 +29,14 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
     = (Map(), Array())
 
 
-   def createGenerator(limitRandomInt:Int): Unit = {
-    Generator.env.setRestartStrategy(RestartStrategies.fixedDelayRestart(
-      2, // number of restart attempts
+   def createGenerator(): Unit = {
+    env.setRestartStrategy(RestartStrategies.fixedDelayRestart(
+      attempts-1, // number of restart attempts
       Time.of(2, TimeUnit.SECONDS) // delay
     ))
 
-    //Initialize seed list
-    seeds.foreach({_ => randomIntGenerator.nextInt(limitRandomInt)})
 
-    val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen, seeds)
+    val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen, Some(seed))
     genDataset.sample.get.mapPartition(new FaultTolerantSeeds[Int]).count()
   }
 
@@ -57,10 +54,10 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
           val line = src.getLines.next().split(", ")
           src.close
           line
-        }
+        }.toList
 
         datasetValues = datasetValues.updated(attempt, datasetValues.get(attempt).get ++ values)
-        partitionValues(partition)(attempt) = values toList
+        partitionValues(partition)(attempt) = values
       }
     }
     (datasetValues, partitionValues)
@@ -72,9 +69,11 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
     FilesPath.initFilePathMatrix(partitions, attempts)
 
     try {
-      createGenerator(partitions * 1000)
+      createGenerator()
     } catch {
-      case _: java.lang.Exception =>
+      case _: java.lang.Exception => {
+        println("Restart strategy failed")
+      }
 
     }finally {
       generatedValues = getTestGeneratedValues(FilesPath.getPathMatrix())
@@ -100,8 +99,8 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
         partitionValues(partition)(attempt) must containTheSameElementsAs(partitionValues(partition)((attempt+1) % partitionValues(partition).size))
       }
     }
-
-  } must_== ()
+  ok
+  }
 
 
 
@@ -117,5 +116,6 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
       keyVal =>
         keyVal._2 must containTheSameElementsAs (datasetValues((keyVal._1+1) % datasetValues.size) )
     })
-  } must_==()
+    ok
+  }
 }
