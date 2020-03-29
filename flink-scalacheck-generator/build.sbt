@@ -15,16 +15,17 @@ libraryDependencies ++= Seq(
   "org.apache.flink" %% "flink-scala" % flinkVersion,
   "org.apache.flink" %% "flink-streaming-scala" % flinkVersion)
 
+
 // Libraries for ScalaCheck
 libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.1"
 //libraryDependencies += "org.slf4j" % "slf4j-simple" % "1.6.4"
 
 libraryDependencies ++= Seq(
-  "org.specs2" %% "specs2-core" % "4.6.0" % "test",
+  "org.specs2" %% "specs2-core" % "4.6.0",
   // the scalacheck lib will come as a transitive
   // dependency
-  "org.specs2" %% "specs2-scalacheck" % "4.6.0" % "test"
+  "org.specs2" %% "specs2-scalacheck" % "4.6.0"
 )
 
 scalacOptions in Test ++= Seq("-Yrangepos")
