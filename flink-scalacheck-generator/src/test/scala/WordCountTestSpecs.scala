@@ -1,4 +1,4 @@
-import flink_apps.FlinkApps
+import flink_apps.WordCount
 import generator.Generator
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment}
@@ -12,17 +12,16 @@ import scala.collection.mutable.ListBuffer
 class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaCheck with ResultMatchers with GeneratorTest  {
 
   implicit val typeInfo: TypeInformation[String] = TypeInformation.of(classOf[String])
-  implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
-
+  override implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
 
   override val partitions: Int = 3
   override val elements: Int = 5
   override val seed = 0
 
-  val valueDatasets = List("antonio", "enrique", "juan")
-  val numDatasets = valueDatasets.size
+  private val valueDatasets = List("antonio", "enrique", "juan")
+  private val numDatasets = valueDatasets.size
 
-  var genDatasets: ListBuffer[Gen[DataSet[String]]] = ListBuffer.empty[Gen[DataSet[String]]] //Dataset with generator and word generated
+  private var genDatasets: ListBuffer[Gen[DataSet[String]]] = ListBuffer.empty[Gen[DataSet[String]]] //Dataset with generator and word generated
 
 
   /**
@@ -48,33 +47,30 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
     genDatasets :+= createGenerator(valueDatasets(index))
   }
 
-  //For test 1
+  //For test 1 in p1
   val genDatasetAntonio: Gen[DataSet[String]] = createGenerator("antonio")
   val genDatasetEnrique: Gen[DataSet[String]] = createGenerator("enrique")
   val genDatasetJuan: Gen[DataSet[String]] = createGenerator("juan")
 
-  //For test 2
+  //For test 2 in p2
   val genDatasetRandomStrings: Gen[DataSet[String]] = createGenerator()
 
 
   //ScalaCheck test
-
   val p1: Properties = new Properties("Count total elements in word count") {
     property("EqualNumberOfElements") = Prop.forAll(genDatasetAntonio, genDatasetEnrique, genDatasetJuan){
       (d1: DataSet[String], d2: DataSet[String], d3: DataSet[String]) =>
         val totalCount = d1.count() + d2.count() + d3.count()
-        val dataset = d1.union(d2.union(d3))
-        //println(FlinkApps.wordCount(dataset).map{case (_,t2) => t2}.sum + "------" +totalCount)
-        FlinkApps.wordCount(dataset).map{case (_,t2) => t2}.sum must_== totalCount
+        val allDatasets = d1.union(d2.union(d3))
+        WordCount.wordCountCalc(allDatasets).map{case (_,t2) => t2}.sum must_== totalCount
 
     }
     property("NotEqualNumberOfElements") = Prop.forAll(genDatasetAntonio, genDatasetEnrique, genDatasetJuan){
       (d1: DataSet[String], d2: DataSet[String], d3: DataSet[String]) =>
 
         val totalCount = d1.count() + d2.count() + d3.count()
-        val dataset = d1.union(d2.union(d3))
-        //println(FlinkApps.wordCount(dataset).map{case (_,t2) => t2}.sum + "------" +totalCount)
-        FlinkApps.wordCount(dataset).map{case (_,t2) => t2}.sum must_!=  totalCount -10
+        val allDatasets = d1.union(d2.union(d3))
+        WordCount.wordCountCalc(allDatasets).map{case (_,t2) => t2}.sum must_!=  totalCount -10
 
     }
   }
@@ -85,10 +81,10 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
       val dataset: DataSet[String] = d.distinct().map(xs => Seq.fill(xs.length)(xs))
         .flatMap(xs => xs)
 
-      val wordCountTupleList = FlinkApps.wordCount(dataset)
+      val wordCountTupleList = WordCount.wordCountCalc(dataset)
 
       wordCountTupleList.foreach({xs =>
-        xs._1.size must_== xs._2
+        xs._1.length must_== xs._2
       }) must_==()
   }
 

@@ -15,7 +15,7 @@ import org.specs2.specification.BeforeAll
 class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest with BeforeAll {
 
   implicit val typeInfo: TypeInformation[Int] = TypeInformation.of(classOf[Int])
-  implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
+  override implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
 
 
   override val elements = 3
