@@ -1,6 +1,4 @@
 package flink_apps
-import org.apache.flink.api.java.aggregation.Aggregations
-import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.api.scala.DataSet
 import org.apache.flink.streaming.api.scala._
 

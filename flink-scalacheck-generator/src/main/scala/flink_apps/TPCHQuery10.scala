@@ -60,7 +60,7 @@ object TPCHQuery10 {
    * @param lineItems
    * @param nations
    */
-  def TPCHQuery10Calc (customers:  DataSet[(Long, String, String, Int, Double)], orders: DataSet[(Long, Int, String)], lineItems: DataSet[(Long, Double, Double, String)], nations: DataSet[(Long, String)]) {
+  def TPCHQuery10Calc (customers:  DataSet[(Long, String, String, Long, Double)], orders: DataSet[(Long, Long, String)], lineItems: DataSet[(Long, Double, Double, String)], nations: DataSet[(Long, String)]): DataSet[(Long, String, String, String, Double, Double)] = {
 
     // filter orders by years
     val orders1990 = orders.filter( o => o._3.substring(0,4).toInt > 1990)
@@ -82,8 +82,7 @@ object TPCHQuery10 {
       .join(revenueByCustomer).where(0).equalTo(0)
       .apply( (c, r) => (c._1, c._2, c._3, c._4, c._5, r._2) )
 
-    println("Printing result to stdout")
-    result.print()
+    result
   }
 
 }
