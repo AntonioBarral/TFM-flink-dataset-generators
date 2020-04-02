@@ -70,7 +70,7 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
 
         val totalCount = d1.count() + d2.count() + d3.count()
         val allDatasets = d1.union(d2.union(d3))
-        WordCount.wordCountCalc(allDatasets).map{case (_,t2) => t2}.sum must_!=  totalCount -10
+        WordCount.wordCountCalc(allDatasets).map{case (_,t2) => t2}.sum must_!=  totalCount - elements
 
     }
   }

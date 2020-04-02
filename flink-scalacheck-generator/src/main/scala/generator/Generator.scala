@@ -7,8 +7,7 @@ import org.apache.flink.api.common.functions.RichMapPartitionFunction
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala._
 import org.apache.flink.util.Collector
-
-import org.scalacheck.Gen
+import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Gen.Parameters
 import org.scalacheck.rng.Seed
 import utilities.FilesPath
@@ -57,26 +56,29 @@ object Generator {
   }
 
 
-  def generateDataSetGenerator[A: ClassTag : TypeInformation](numElements: Int, numPartitions: Int, g: Gen[A], seed: Option[Int] = null)
+  def generateDataSetGenerator[A: ClassTag : TypeInformation](numElements: Int, numPartitions: Int, g: Gen[A], seedOpt: Option[Int] = None)
                                                              (implicit env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment): Gen[DataSet[A]] = {
 
     val indexes: DataSet[Int] = env.fromElements(0 to numPartitions-1: _*)
-
-    val finalDataSet: DataSet[A] = indexes
-      .rebalance()//Send each list to the partition with value equal to first position of the tuple
-      .flatMap { xs =>
-
-        val elements: List[A] = if (Option(seed).isDefined) Gen.listOfN(numElements, g).apply(Parameters.default, Seed.apply(seed.get)).getOrElse(Nil) else Gen.listOfN(numElements, g).sample.getOrElse(Nil)
+    val seedGen: Gen[Int] = if (seedOpt.isDefined) Gen.const(seedOpt.get) else Arbitrary.arbitrary[Int]
+    for {
+      seed <- seedGen
+    } yield indexes
+      .rebalance() //Send each list to the partition with value equal to first position of the tuple
+      .flatMap { _ =>
+        val elements: List[A] = Gen.listOfN(numElements, g).apply(Parameters.default, Seed.apply(seed)).getOrElse(Nil)
         //println(tuple._1 + "--------------" + elements)
         elements
       }
       .setParallelism(numPartitions)
-    finalDataSet
   }
 
   //Easy way to test generator
   def main(args: Array[String]): Unit = {
-    print(generateDataSetGenerator(100, 3, Gen.const("antnio")).sample.get.count())
+    /*implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
+    val a = env.fromElements("hola", "que", "tal").map(xs => Seq.fill(xs.length)(xs))
+      .flatMap(xs => xs).print()*/
+    print(generateDataSetGenerator(100, 3, Gen.const("antonio")).sample.get.count())
   }
 
 }
