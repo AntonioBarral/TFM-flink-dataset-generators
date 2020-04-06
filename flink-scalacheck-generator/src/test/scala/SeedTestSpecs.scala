@@ -13,12 +13,13 @@ import org.specs2.matcher.MatchResult
 import org.specs2.specification.BeforeAll
 
 class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest with BeforeAll {
+  sequential
 
   implicit val typeInfo: TypeInformation[Int] = TypeInformation.of(classOf[Int])
   override implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
 
 
-  override val elements = 3
+  override val elements = 10
   override val partitions = 3
 
   override val seed = 10
@@ -36,7 +37,7 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
     ))
 
 
-    val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen, Some(seed))
+    val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen ,Some(seed))
     genDataset.sample.get.mapPartition(new FaultTolerantSeeds[Int]).count()
   }
 
