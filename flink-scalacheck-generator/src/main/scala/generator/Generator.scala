@@ -61,12 +61,14 @@ object Generator {
 
     val indexes: DataSet[Int] = env.fromElements(0 to numPartitions-1: _*)
     val seedGen: Gen[Int] = if (seedOpt.isDefined) Gen.const(seedOpt.get) else Arbitrary.arbitrary[Int]
+
     for {
       seed <- seedGen
-    } yield indexes
+    } yield
+      indexes
       .rebalance() //Send each list to the partition with value equal to first position of the tuple
-      .flatMap { _ =>
-        val elements: List[A] = Gen.listOfN(numElements, g).apply(Parameters.default, Seed.apply(seed)).getOrElse(Nil)
+      .flatMap { xs =>
+        val elements: List[A] = Gen.listOfN(numElements, g).apply(Parameters.default, Seed.apply(seed + xs)).getOrElse(Nil)
         //println(tuple._1 + "--------------" + elements)
         elements
       }
