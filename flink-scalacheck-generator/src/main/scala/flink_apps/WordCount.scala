@@ -10,7 +10,7 @@ object WordCount {
    * @param genDatasetSample
    * @return collect from words counted
    */
-  def wordCountCalc(genDatasetSample : DataSet[String]) (): Seq[(String, Int)] = {
+  def wordCountCalc(genDatasetSample : DataSet[String]): Seq[(String, Int)] = {
     val counts  = genDatasetSample.flatMap { _.toLowerCase.split("\\W+") filter { _.nonEmpty } }
       .map { (_, 1) }
       .groupBy(0)

@@ -1,6 +1,5 @@
 import flink_apps.WordCount
 import generator.Generator
-import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment}
 import org.apache.flink.api.scala._
 import org.scalacheck.{Gen, Prop}
@@ -12,7 +11,6 @@ import scala.collection.mutable.ListBuffer
 class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaCheck with ResultMatchers with GeneratorTest  {
   sequential
 
-  implicit val typeInfo: TypeInformation[String] = TypeInformation.of(classOf[String])
   override implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
 
   override val partitions: Int = 3
