@@ -11,7 +11,7 @@ import org.specs2.matcher.Matcher
 import org.specs2.matcher.MatchersImplicits._
 import scala.reflect.ClassTag
 
-/*package object flink {
+package object flink {
 
   implicit class FlinkCheckDataSet[T : TypeInformation : ClassTag : Ordering]
   (@transient self: DataSet[T]) extends Serializable {
@@ -25,7 +25,7 @@ import scala.reflect.ClassTag
       // based on https://stackoverflow.com/questions/38737194/apache-flink-dataset-difference-subtraction-operation
       self.coGroup(other)
         .where("*")
-        .equalTo("*") { (selfVals, otherVals, out: Collector[T]) =>
+        .equalTo("*") { (selfVals: Iterator[T], otherVals: Iterator[T], out: Collector[T]) =>
           val otherValsSet = otherVals.toSet
           selfVals
             .filterNot(otherValsSet.contains)
@@ -38,7 +38,7 @@ import scala.reflect.ClassTag
      */
     private[this] def minusWithLeftOuterJoin(other: DataSet[T]): DataSet[T] = {
       self.leftOuterJoin(other).where("*").equalTo("*") {
-        (thisData, otherData) =>
+        (thisData: T, otherData: T) =>
           if (otherData == null) List(thisData)
           else Nil
       }.flatMap { x => x }
@@ -61,8 +61,8 @@ import scala.reflect.ClassTag
     ```
     * */
     private[this] def minussWithSortPartition(other: DataSet[T]): DataSet[T] = {
-      val selfMarked: DataSet[(T, Boolean)] = self.map((_, true))
-      val otherMarked: DataSet[(T, Boolean)] = other.map((_, false))
+      val selfMarked: DataSet[(T, Boolean)] = self.map((_: T, true))
+      val otherMarked: DataSet[(T, Boolean)] = other.map((_: T, false))
 
       // Range vs Hash partitioning in Spark: https://www.edureka.co/blog/demystifying-partitioning-in-spark
       // https://stackoverflow.com/questions/34071445/global-sorting-in-apache-flink/34073087
@@ -85,8 +85,8 @@ import scala.reflect.ClassTag
     mode, although it loads the whole partition in memory so it's probably not too good.
     * */
     private[this] def minusWithInMemoryPartition(other: DataSet[T]): DataSet[T] = {
-      val selfMarked: DataSet[(T, Boolean)] = self.map((_, true))
-      val otherMarked: DataSet[(T, Boolean)] = other.map((_, false))
+      val selfMarked: DataSet[(T, Boolean)] = self.map((_ : T, true))
+      val otherMarked: DataSet[(T, Boolean)] = other.map((_: T, false))
       val all = selfMarked.union(otherMarked)
         .partitionByHash(0) // so occurrences of the same value in both datasets go to the same partition
       all.mapPartition[T] { (partitionIter: Iterator[(T, Boolean)], collector: Collector[T]) =>
@@ -113,7 +113,7 @@ package flink {
 
     def foreachElementProjection[T, P](projection: T => P)
                                       (predicate: P => Boolean): Matcher[DataSet[T]] = { (data: DataSet[T]) =>
-      val failingElements = data.filter{x => ! predicate(projection(x))}.first(numErrors)
+      val failingElements = data.filter{x: T => ! predicate(projection(x))}.first(numErrors)
       (
         failingElements.count() == 0,
         "all elements fulfil the predicate",
@@ -136,7 +136,7 @@ package flink {
 
     def existsElementProjection[T, P](projection: T => P)
                                      (predicate: P => Boolean): Matcher[DataSet[T]] = { (data: DataSet[T]) =>
-      val exampleElements = data.filter{x => predicate(projection(x))}.first(1)
+      val exampleElements = data.filter{x: T => predicate(projection(x))}.first(1)
       (
         exampleElements.count() > 0,
         "some element fulfils the predicate",
@@ -178,4 +178,4 @@ package flink {
     }
 
   }
-}*/
+}
