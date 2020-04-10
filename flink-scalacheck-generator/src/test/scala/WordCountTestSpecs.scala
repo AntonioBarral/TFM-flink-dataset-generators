@@ -1,3 +1,4 @@
+import es.ucm.fdi.sscheck.matcher.specs2.flink
 import flink_apps.WordCount
 import generator.Generator
 import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment}
@@ -88,4 +89,9 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
       }) must_==()
 
   }.set(minTestsOk = 50)
+
+  "Dataset generated is never empty" >> Prop.forAll(genDatasetRandomStrings) {
+    d: DataSet[String] =>
+      d must flink.DataSetMatchers.beNonEmptyDataSet()
+  }
 }
