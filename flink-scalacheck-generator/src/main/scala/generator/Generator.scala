@@ -3,7 +3,7 @@ package generator
 import java.lang
 import java.io.{BufferedWriter, File, FileWriter}
 
-import org.apache.flink.api.common.functions.RichMapPartitionFunction
+import org.apache.flink.api.common.functions.{RichMapPartitionFunction, RichFlatMapFunction}
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala._
 import org.apache.flink.util.Collector
@@ -23,7 +23,7 @@ object Generator {
 
     override def mapPartition(values: lang.Iterable[A], out: Collector[Int]): Unit = {
       val attempt = getRuntimeContext.getAttemptNumber
-      val task = getRuntimeContext().getIndexOfThisSubtask()
+      val task = getRuntimeContext.getIndexOfThisSubtask
       var ownElements = List.empty[String]
       val currentFile = "partition_" + task + "_attempt_" + attempt + "-"
       val f = File.createTempFile(currentFile, extension)
@@ -37,7 +37,7 @@ object Generator {
       })
 
 
-      for (index <- 0 to ownElements.size-1) {
+      for (index <- ownElements.indices) {
 
         if (index != ownElements.size-1) {
           writer.write(ownElements(index) + ", ")
@@ -59,17 +59,16 @@ object Generator {
   def generateDataSetGenerator[A: ClassTag : TypeInformation](numElements: Int, numPartitions: Int, g: Gen[A], seedOpt: Option[Int] = None)
                                                              (implicit env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment): Gen[DataSet[A]] = {
 
-    val indexes: DataSet[Int] = env.fromElements(0 to numPartitions-1: _*)
+    //val indexes: DataSet[Int] = env.fromElements(0 to numPartitions-1: _*)
     val seedGen: Gen[Int] = if (seedOpt.isDefined) Gen.const(seedOpt.get) else Arbitrary.arbitrary[Int]
 
     for {
-      seed <- seedGen
+      seeds <- Gen.listOfN(numPartitions, seedGen)
     } yield
-      indexes
-      .rebalance() //Send each list to the partition with value equal to first position of the tuple
+      env.fromCollection(seeds)
+      .rebalance() //Make a load balanced strategy scattering a number of lists equals to numPartitions, among the available task slots
       .flatMap { xs =>
-        val elements: List[A] = Gen.listOfN(numElements, g).apply(Parameters.default, Seed.apply(seed + xs)).getOrElse(Nil)
-        //println(tuple._1 + "--------------" + elements)
+        val elements: List[A] = Gen.listOfN(numElements, g).apply(Parameters.default, Seed.apply(xs)).getOrElse(Nil)
         elements
       }
       .setParallelism(numPartitions)
@@ -77,10 +76,10 @@ object Generator {
 
   //Easy way to test generator
   def main(args: Array[String]): Unit = {
-    /*implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
-    val a = env.fromElements("hola", "que", "tal").map(xs => Seq.fill(xs.length)(xs))
-      .flatMap(xs => xs).print()*/
-    print(generateDataSetGenerator(100, 3, Gen.const("antonio")).sample.get.count())
+    implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
+    val a = env.fromElements(("hola",1), ("que",2), ("tal",3))
+    val b =  env.fromElements(("hola",1), ("que",2), ("tal",3))
+    //print(generateDataSetGenerator(1000000, 10, Gen.choose(1,100)).sample.get.count())
   }
 
 }
