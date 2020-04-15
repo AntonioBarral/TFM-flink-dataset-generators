@@ -1,7 +1,9 @@
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Date}
 
-import TPCHQuery10TestSpecs.{Customer, Lineitem, Nation, Order, validRanges, toCSVFormat, validTypes}
+import TPCHQuery10TestSpecs.{Customer, Lineitem, Nation, Order, toCSVFormat, validRanges, validTypes}
+import es.ucm.fdi.sscheck.matcher.specs2.flink
+
 import flink_apps.TPCHQuery10
 import generator.Generator
 import utilities.TableApiUDF
@@ -22,7 +24,16 @@ import scala.util.control.Exception.allCatch
 object TPCHQuery10TestSpecs {
 
   //Companion classes
-  case class Customer(name: String, address:String, nationId: Long, acctBal: Double)
+  case class Customer(name: String, address:String, nationId: Long, acctBal: Double) extends Ordered [Customer] {
+    override def compare(other: Customer): Int = {
+      if (this.acctBal == other.acctBal)
+        0
+      else if (this.acctBal > other.acctBal)
+        1
+      else
+        -1
+    }
+  }
   case class Order(custId: Long, orderDate: String)
   case class Lineitem(extPrice: Double, discount: Double, returnFlag: String)
   case class Nation(nation: String)
@@ -182,7 +193,7 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
           .join(tableNations).where('nationId === 'n_id)
           .where(toIntFunct('orderDate.substring(0, 5)) > 1990 && 'returnFlag === "R")
           .groupBy('c_id, 'name, 'acctBal, 'nation, 'address)
-          .select('c_id, 'name, 'address, 'nation, 'acctBal, ('extPrice * ('discount - 1).abs()).sum as 'revenue)
+          .select('c_id, 'name, 'address, 'nation, 'acctBal, ('extPrice * ('discount - 1).abs()).sum.ceil() as 'revenue) //TODO el ultimo numero puede salir con mas decimales (TPCH redondea a 4) De momento redondeo para arriba en ambos sitios
 
         val datasetApiResult: List[(Long, String, String, String, Double, Double)] = tEnv.toDataSet[(Long, String, String, String, Double, Double)](tableApiResult).collect() toList
 
@@ -190,7 +201,7 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
         datasetApiResult must containTheSameElementsAs(resultTPCH)
 
 
-    }.set(minTestsOk = 1)
+    }.set(minTestsOk = 100)
 
   "This property checks that 2 gens with different seeds are different always" >>
     Prop.forAll(seedGen1, seedGen2) {
@@ -198,10 +209,8 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
         (seed1 != seed2) ==> _
         val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed1))
         val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed2))
-
         d1.sample.get.collect() must_!= containTheSameElementsAs(d2.sample.get.collect())
-    }.set(minTestsOk = 1)
-
+    }.set(minTestsOk = 20)
 
   "This property checks that 1 gen producing a seed to produce 2 gen datasets, generates the same gen datasets" >>
     Prop.forAll(seedGen1) {
@@ -209,7 +218,8 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
         val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
         val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
 
-        d1.sample.get.collect() must containTheSameElementsAs(d2.sample.get.collect())
+        d1.sample.get must flink.DataSetMatchers.beSubDataSetOf(d2.sample.get)
+
     }.set(minTestsOk = 20)
 
 
@@ -227,6 +237,8 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
    * Checks if dataset accomplish the ETL rules defined
    *
    * @param customerStringDataset
+   * @param rangeValidation
+   * @param dataTypeValidation
    * @return dataset with data that accomplishes the rules
    */
   def checkCustomerETLProperties(customerStringDataset: DataSet[String], rangeValidation: Boolean = true, dataTypeValidation : Boolean = true): DataSet[Customer] = {
@@ -286,12 +298,18 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
   "notCheckingTypeCorrectness: It has to fail because no data type validation is done" >>
     Prop.forAll(validCustomerGen, invalidCustomerGen) {
       (validCustomerDataset: DataSet[Customer], invalidCustomerDataset: DataSet[Customer]) =>
-        //TODO checkear que hacer con los NaN o siquiera si estan bien puestos en los valores del dataset parseError
+
         val wholeDataset = headers
           .union(parseError)
           .union(validCustomerDataset.map(xs => toCSVFormat(xs)))
           .union(invalidCustomerDataset.map(xs => toCSVFormat(xs)))
 
-        checkCustomerETLProperties(wholeDataset, dataTypeValidation = false).collect() must_!=  containTheSameElementsAs(validCustomerDataset.collect())
-    }.set(minTestsOk = 20)
+        try {
+          checkCustomerETLProperties(wholeDataset, dataTypeValidation = false).collect() must_!= containTheSameElementsAs(validCustomerDataset.collect())
+        } catch {
+          case _: java.lang.Exception =>
+            ok
+        }
+
+    }.set(minTestsOk = 100)
 }

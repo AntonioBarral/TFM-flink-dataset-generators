@@ -20,7 +20,7 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
 
 
   override val elements = 10
-  override val partitions = 3
+  override val partitions = 10
 
   override val seed = 10
   private val gen = Gen.choose(0,20)
@@ -37,7 +37,7 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
     ))
 
 
-    val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen ,Some(seed))
+    val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen)
     genDataset.sample.get.mapPartition(new FaultTolerantSeeds[Int]).count()
   }
 

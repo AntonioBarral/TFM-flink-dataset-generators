@@ -75,6 +75,7 @@ object TPCHQuery10 {
       .apply( (o,l) => (o._2, l._2) )
       .groupBy(0)
       .aggregate(Aggregations.SUM, 1)
+      .map(xs => (xs._1, xs._2.ceil))
 
     // compute final result by joining customer and nation information with revenue
     val result = customers.joinWithTiny(nations).where(3).equalTo(0)

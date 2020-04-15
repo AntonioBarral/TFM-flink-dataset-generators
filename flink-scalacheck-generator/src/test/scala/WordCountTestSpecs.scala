@@ -74,7 +74,7 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
       val allDatasets = d1.union(d2.union(d3))
       WordCount.wordCountCalc(allDatasets).map{case (_,t2) => t2}.sum must_!=  totalCount - elements
 
-  }.set(minTestsOk = 1)
+  }.set(minTestsOk = 50)
 
 
   "Number of words is equal to its length" >> Prop.forAll (genDatasetRandomStrings) {
