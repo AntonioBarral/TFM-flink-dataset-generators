@@ -177,5 +177,16 @@ package flink {
         )
     }
 
+    def beEqualDatasetTo[T : TypeInformation : ClassTag: Ordering](other: DataSet[T]): Matcher[DataSet[T]] = {
+      data: DataSet[T] =>
+
+        val failingElements = new FlinkCheckDataSet(data).minus(other).first(numErrors)
+
+        (
+          failingElements.count() == 0 && data.count() == other.count(),
+          "this data set is equal to the other",
+          s"these elements of the data set are not contained in the other ${failingElements.collect().mkString(", ")} ..."
+        )
+    }
   }
 }
