@@ -9,6 +9,7 @@ import org.apache.flink.api.scala._
 import org.apache.flink.util.Collector
 import org.specs2.matcher.Matcher
 import org.specs2.matcher.MatchersImplicits._
+
 import scala.reflect.ClassTag
 
 package object flink {
@@ -17,7 +18,7 @@ package object flink {
   (@transient self: DataSet[T]) extends Serializable {
 
     /** returns data set with elements in self that are not present in other */
-    def minus(other: DataSet[T]): DataSet[T] = minusWithInMemoryPartition(other)
+    def minus(other: DataSet[T], strict: Boolean): DataSet[T] = minusWithInMemoryPartition(other, strict)
 
     /* cannot be used in practice, and often leads to "java.lang.OutOfMemoryError: Java heap space"
       * */
@@ -79,28 +80,87 @@ package object flink {
       }
     }
 
+    /**
+     * Make a strong comparison from elements from both datasets (i.e. it considers duplicates)
+     * e.g: (2,2,3) is no subset of (2,3,3)
+     * @param sortedPartition constains data from self and other datasets
+     * @return collector
+     */
+    def strictComparison(sortedPartition: Array[(T, Boolean)]): List[T] = {
+      var latestOtherOpt: Option[T] = None
+      var accumOtherElements = 0
+      var prevState = false
+      var notContainedValues = List.empty[T]
+
+      sortedPartition.foreach {
+        case (otherElem, false) =>
+          //This considers that prev num is from self, fist element is from other or prev num was from other but was different
+          if (prevState || latestOtherOpt.isEmpty || latestOtherOpt != Some(otherElem)) {
+            accumOtherElements = 0
+            prevState = false
+            latestOtherOpt = Some(otherElem)
+          }
+
+          accumOtherElements -= 1
+
+        case (selfElem, true) =>
+          if(!prevState) prevState = true
+
+          if (latestOtherOpt != Some(selfElem)) {
+            notContainedValues :+= selfElem
+
+          }else{ //if last element from other is equal to selfElem add 1 to counter.
+            accumOtherElements += 1
+
+            //If greater than 0, then self has more elements from the same type than other
+            if (accumOtherElements > 0)  notContainedValues :+= selfElem
+          }
+      }
+      notContainedValues
+    }
+
+
+    /**
+     * Make a strong comparison from elements from both datasets (i.e. it does not consider duplicates)
+     * e.g: (2,2,3) is subset of (2,3,3)
+     * @param sortedPartition constains data from self and other datasets
+     * @return collector
+     */
+    def nonStrictComparison(sortedPartition: Array[(T, Boolean)]): List[T] = {
+      var latestOtherOpt: Option[T] = None
+      var notContainedValues = List.empty[T]
+
+      sortedPartition.foreach {
+        case (otherElem, false) => latestOtherOpt = Some(otherElem)
+        case (selfElem, true) =>
+          if (latestOtherOpt != Some(selfElem)) notContainedValues :+= selfElem
+      }
+      notContainedValues
+    }
+
+
     /* Computes self minus other using in memory sorting by partition. This is the same idea as
-    minussWithSortPartition but sorting by partition in memory, instead of using `sortPartition`
-    This is fast enough for local execution environment, it also works by partition so it might work for distributed
-    mode, although it loads the whole partition in memory so it's probably not too good.
-    * */
-    private[this] def minusWithInMemoryPartition(other: DataSet[T]): DataSet[T] = {
+        minussWithSortPartition but sorting by partition in memory, instead of using `sortPartition`
+        This is fast enough for local execution environment, it also works by partition so it might work for distributed
+        mode, although it loads the whole partition in memory so it's probably not too good.
+        * */
+    private[this] def minusWithInMemoryPartition(other: DataSet[T], strict: Boolean): DataSet[T] = {
       val selfMarked: DataSet[(T, Boolean)] = self.map((_ : T, true))
       val otherMarked: DataSet[(T, Boolean)] = other.map((_: T, false))
       val all = selfMarked.union(otherMarked)
         .partitionByHash(0) // so occurrences of the same value in both datasets go to the same partition
+
       all.mapPartition[T] { (partitionIter: Iterator[(T, Boolean)], collector: Collector[T]) =>
+
         val sortedPartition = {
           val partition = partitionIter.toArray
           util.Sorting.quickSort(partition)
           partition
         }
-        var latestOtherOpt: Option[T] = None
-        sortedPartition.foreach {
-          case (otherElem, false) => latestOtherOpt = Some(otherElem)
-          case (selfElem, true) =>
-            if (latestOtherOpt != Some(selfElem)) collector.collect(selfElem)
-        }
+
+        val notContainedValues = if (strict) strictComparison(sortedPartition) else nonStrictComparison(sortedPartition)
+        notContainedValues.foreach(collector.collect)
+
       }
     }
   }
@@ -165,27 +225,76 @@ package flink {
       existsElement(Function.const(true))
     }
 
-    def beSubDataSetOf[T : TypeInformation : ClassTag : Ordering](other: DataSet[T]): Matcher[DataSet[T]] = {
-      (data: DataSet[T]) =>
-
-        val failingElements = new FlinkCheckDataSet(data).minus(other).first(numErrors)
-
+    /**
+     * Compares self dataset with other to check if self is subset of other
+     * @param other dataset
+     * @param strict if comparison will be include duplicates or not
+     * @tparam T class of elements included in both datasets
+     * @return if it that comparison was successful or not. If not it will return numErrors elements which do not accomplish the condition
+     */
+    def beSubDataSetOf[T : TypeInformation : ClassTag : Ordering](other: DataSet[T], strict: Boolean = true): Matcher[DataSet[T]] = {
+      data: DataSet[T] =>
+        val failingElements = new FlinkCheckDataSet(data).minus(other, strict).first(numErrors)
         (
           failingElements.count() == 0,
-          "this data set is contained on the other",
+          "this data set is contained in the other",
           s"these elements of the data set are not contained in the other ${failingElements.collect().mkString(", ")} ..."
         )
     }
 
-    def beEqualDatasetTo[T : TypeInformation : ClassTag: Ordering](other: DataSet[T]): Matcher[DataSet[T]] = {
+    /**
+     * Compares self dataset with other to check if both are equal
+     * @param other dataset
+     * @param strict if comparison will be include duplicates or not
+     * @tparam T class of elements included in both datasets
+     * @return if it that comparison was successful or not. If not it will return numErrors elements which do not accomplish the condition
+     */
+    def beEqualDataSetTo[T : TypeInformation : ClassTag: Ordering](other: DataSet[T], strict: Boolean = true): Matcher[DataSet[T]] = {
       data: DataSet[T] =>
-
-        val failingElements = new FlinkCheckDataSet(data).minus(other).first(numErrors)
+        var failingElements: DataSet[T] = new FlinkCheckDataSet(data).minus(other, strict).first(numErrors)
+        failingElements = failingElements.union(new FlinkCheckDataSet(other).minus(data, strict).first(numErrors))
 
         (
-          failingElements.count() == 0 && data.count() == other.count(),
+          failingElements.count() == 0,
           "this data set is equal to the other",
           s"these elements of the data set are not contained in the other ${failingElements.collect().mkString(", ")} ..."
+        )
+    }
+
+    /**
+     * Compares self dataset with other to check if self is not subset of other
+     * @param other dataset
+     * @param strict if comparison will be include duplicates or not
+     * @tparam T class of elements included in both datasets
+     * @return the oposite to beSubDataSetOf
+     */
+    def nonBeSubDataSetOf[T : TypeInformation : ClassTag : Ordering](other: DataSet[T], strict: Boolean = true): Matcher[DataSet[T]] = {
+      data: DataSet[T] =>
+        val elementsDiffer: Boolean = new FlinkCheckDataSet(data).minus(other, strict).count() > 0
+
+        (
+          elementsDiffer,
+          "this data set is not contained in the other",
+          "this data set is contained in the other"
+        )
+    }
+
+    /**
+     * Compares self dataset with other to check if both are not equal
+     * @param other dataset
+     * @param strict if comparison will be include duplicates or not
+     * @tparam T class of elements included in both datasets
+     * @return oposite to beEqualDatasetTo
+     */
+    def nonBeEqualDataSetTo[T : TypeInformation : ClassTag : Ordering](other: DataSet[T], strict: Boolean = true): Matcher[DataSet[T]] = {
+      data: DataSet[T] =>
+        var elementsDiffer: Boolean = new FlinkCheckDataSet(data).minus(other, strict).count() > 0
+        elementsDiffer = if (new FlinkCheckDataSet(other).minus(data, strict).count() > 0) true else elementsDiffer
+
+        (
+          elementsDiffer,
+          "this data set is not equal to the other",
+          "this data set is equal to the other"
         )
     }
   }
