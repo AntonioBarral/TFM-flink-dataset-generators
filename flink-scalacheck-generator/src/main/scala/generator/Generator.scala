@@ -3,7 +3,7 @@ package generator
 import java.lang
 import java.io.{BufferedWriter, File, FileWriter}
 
-import org.apache.flink.api.common.functions.{RichMapPartitionFunction, RichFlatMapFunction}
+import org.apache.flink.api.common.functions.{RichMapPartitionFunction}
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala._
 import org.apache.flink.util.Collector
@@ -58,13 +58,16 @@ object Generator {
 
   def generateDataSetGenerator[A: ClassTag : TypeInformation](numElements: Int, numPartitions: Int, g: Gen[A], seedOpt: Option[Int] = None)
                                                              (implicit env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment): Gen[DataSet[A]] = {
-
+    //Gen.listOfN(numPartitions, Arbitrary.arbitrary[Int]).apply(Parameters.default, Seed.apply(seed)).get
     //val indexes: DataSet[Int] = env.fromElements(0 to numPartitions-1: _*)
     val seedGen: Gen[Int] = if (seedOpt.isDefined) Gen.const(seedOpt.get) else Arbitrary.arbitrary[Int]
 
     for {
-      seeds <- Gen.listOfN(numPartitions, seedGen)
+      //seeds <- Gen.listOfN(numPartitions, seedGen)
+      seed <- seedGen
+      seeds = Gen.listOfN(numPartitions, Arbitrary.arbitrary[Int]).apply(Parameters.default, Seed.apply(seed)).get
     } yield
+      //env.fromCollection(seeds)
       env.fromCollection(seeds)
       .rebalance() //Make a load balanced strategy scattering a number of lists equals to numPartitions, among the available task slots
       .flatMap { xs =>
@@ -76,10 +79,7 @@ object Generator {
 
   //Easy way to test generator
   def main(args: Array[String]): Unit = {
-    implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
-    val a = env.fromElements(("hola",1), ("que",2), ("tal",3))
-    val b =  env.fromElements(("hola",1), ("que",2), ("tal",3))
-    //print(generateDataSetGenerator(1000000, 10, Gen.choose(1,100)).sample.get.count())
+    print(generateDataSetGenerator(1000000, 10, Gen.choose(1,100)).sample.get.count())
   }
 
 }
