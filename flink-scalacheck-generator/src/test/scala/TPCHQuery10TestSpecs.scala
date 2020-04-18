@@ -3,7 +3,6 @@ import java.util.{Calendar, Date}
 
 import TPCHQuery10TestSpecs.{Customer, Lineitem, Nation, Order, toCSVFormat, validRanges, validTypes}
 import es.ucm.fdi.sscheck.matcher.specs2.flink
-
 import flink_apps.TPCHQuery10
 import generator.Generator
 import utilities.TableApiUDF
@@ -13,10 +12,10 @@ import org.apache.flink.api.scala._
 import org.apache.flink.table.api.Table
 import org.apache.flink.table.api.scala._
 import org.apache.flink.table.api.scala.BatchTableEnvironment
-import org.scalacheck.{Gen, Prop}
+import org.scalacheck.{Arbitrary, Gen, Prop}
+import org.scalacheck.Prop.propBoolean
 import org.specs2.ScalaCheck
 import org.specs2.matcher.ResultMatchers
-import org.specs2.scalacheck.OneExpectationPerProp
 
 import scala.util.control.Exception.allCatch
 
@@ -26,9 +25,9 @@ object TPCHQuery10TestSpecs {
   //Companion classes
   case class Customer(name: String, address:String, nationId: Long, acctBal: Double) extends Ordered [Customer] {
     override def compare(other: Customer): Int = {
-      if (this.acctBal == other.acctBal)
+      if (this.address == other.address)
         0
-      else if (this.acctBal > other.acctBal)
+      else if (this.address > other.address)
         1
       else
         -1
@@ -41,7 +40,7 @@ object TPCHQuery10TestSpecs {
 
   //Companion defs
   def validRanges(c: Customer): Boolean = {
-    c.acctBal <= 1000.0
+    c.acctBal <= 1000.0 && c.acctBal > 0.0
   }
 
 
@@ -59,11 +58,11 @@ object TPCHQuery10TestSpecs {
 }
 
 
-class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCheck with ResultMatchers with GeneratorTest with OneExpectationPerProp {
+class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCheck with ResultMatchers with GeneratorTest {
   sequential
 
   override val partitions: Int = 3
-  override val elements: Int = 10
+  override val elements: Int = 50
   override val seed: Int = 0
 
   override implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
@@ -180,7 +179,7 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
         val dLineItemId = dLineItem.zipWithUniqueId.map(xs => (xs._1, xs._2.extPrice, xs._2.discount, xs._2.returnFlag))
         val dNationsId = dNations.zipWithUniqueId.map(xs => (xs._1, xs._2.nation))
 
-        val resultTPCH: List[(Long, String, String, String, Double, Double)] = TPCHQuery10.TPCHQuery10Calc(dCustomerId, dOrdersId, dLineItemId, dNationsId).collect() toList
+        val resultTPCH: DataSet[(Long, String, String, String, Double, Double)] = TPCHQuery10.TPCHQuery10Calc(dCustomerId, dOrdersId, dLineItemId, dNationsId)
 
         val tableCustomers: Table = tEnv.fromDataSet(dCustomerId, 'c_id, 'name, 'address, 'nationId, 'acctBal)
         val tableOrders: Table = tEnv.fromDataSet(dOrdersId, 'o_id, 'custId, 'orderDate)
@@ -195,21 +194,23 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
           .groupBy('c_id, 'name, 'acctBal, 'nation, 'address)
           .select('c_id, 'name, 'address, 'nation, 'acctBal, ('extPrice * ('discount - 1).abs()).sum.ceil() as 'revenue) //TODO el ultimo numero puede salir con mas decimales (TPCH redondea a 4) De momento redondeo para arriba en ambos sitios
 
-        val datasetApiResult: List[(Long, String, String, String, Double, Double)] = tEnv.toDataSet[(Long, String, String, String, Double, Double)](tableApiResult).collect() toList
+        val datasetApiResult: DataSet[(Long, String, String, String, Double, Double)] = tEnv.toDataSet[(Long, String, String, String, Double, Double)](tableApiResult)
+
+        datasetApiResult must flink.DataSetMatchers.beEqualDataSetTo(resultTPCH)
 
 
-        datasetApiResult must containTheSameElementsAs(resultTPCH)
-
-
-    }.set(minTestsOk = 100)
+    }.set(minTestsOk = 1)
 
   "This property checks that 2 gens with different seeds are different always" >>
     Prop.forAll(seedGen1, seedGen2) {
       (seed1: Int, seed2: Int) =>
-        (seed1 != seed2) ==> _
-        val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed1))
-        val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed2))
-        d1.sample.get.collect() must_!= containTheSameElementsAs(d2.sample.get.collect())
+        (seed1 != seed2) ==> {
+          val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed1))
+          val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed2))
+
+          d1.sample.get must flink.DataSetMatchers.nonBeEqualDataSetTo(d2.sample.get)
+        }
+
     }.set(minTestsOk = 20)
 
   "This property checks that 1 gen producing a seed to produce 2 gen datasets, generates the same gen datasets" >>
@@ -218,9 +219,9 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
         val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
         val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
 
-        d1.sample.get must flink.DataSetMatchers.beSubDataSetOf(d2.sample.get)
+        d1.sample.get must flink.DataSetMatchers.beEqualDataSetTo(d2.sample.get)
 
-    }.set(minTestsOk = 20)
+    }.set(minTestsOk = 5)
 
 
   /**
@@ -252,63 +253,107 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
       .filter { xs => if (rangeValidation) validRanges(xs) else true }
   }
 
+  /**
+   * Creates a Dataset[String] built regarding the value of each position of the list
+   * @param errorList. It contains a type of wrong field in each position
+   */
+  def createDifferentFieldTypesCustomer(errorList: List[String]): DataSet[String] = {
+    var l = List.empty[String]
+    for (element <- errorList) {
+      element match {
+        case "NaN" =>
+          l :+= "Nombre,Calle,NaN,NaN"
+
+        case "NA" =>
+          l :+= "Nombre,Calle,NA,NA"
+
+        case "Double" =>
+          l :+= "Nombre,Calle," + Arbitrary.arbitrary[Double].sample.get.toString + "0.0"
+
+        case "Int" =>
+          l :+= "Nombre,Calle," + "0" + Arbitrary.arbitrary[Int].sample.get.toString
+
+      }
+    }
+
+    env.fromCollection(l)
+  }
+
 
     private val validCustomerGen: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers()
-    private val invalidCustomerGen: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(acctBalMin = 20000.0, acctBalMax = 30000.0)
-    private val headers: DataSet[String] = env.fromElements(
-      "Name, Address, NationId, AcctBal",
-      "Name, Address, NationId, AcctBal",
-      "Name, Address, NationId, AcctBal"
-    )
-
-    private val parseError: DataSet[String] = env.fromElements(
-      "calle 1,45,234.5",
-      "Fernando,Calle 2,37.6,543.1",
-      "María,Calle 3,2",
-      "Alfonso,Calle 4,23,45",
-      "Virginia,Calle 5,NaN,678.9",
-      "Carmen,Calle 6,76,NA",
-    )
-
+    private val invalidCustomerGen1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(acctBalMin = 20000.0, acctBalMax = 30000.0)
+    private val invalidCustomerGen2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(acctBalMin = -1000.0, acctBalMax = 0.0)
+    private val headersNumberGen: Gen[Int] = Gen.choose(0, elements)
+    private val incorrectFieldNumberGen: Gen[Int] =  Gen.choose(0, elements)
+    private val parseErrorGen: Gen[List[String]] = Gen.listOfN(elements, Gen.oneOf("NaN", "NA", "Double", "Int"))
 
     "parseAndValidate: Only data belonging to validCustomer accomplishes ETL rules defined before" >>
-      Prop.forAll(validCustomerGen, invalidCustomerGen) {
-        (validCustomerDataset: DataSet[Customer], invalidCustomerDataset: DataSet[Customer]) =>
-          val wholeDataset = headers
-            .union(parseError)
-            .union(validCustomerDataset.map(xs => toCSVFormat(xs)))
-            .union(invalidCustomerDataset.map(xs => toCSVFormat(xs)))
+      Prop.forAll(validCustomerGen, invalidCustomerGen1, invalidCustomerGen2, headersNumberGen, incorrectFieldNumberGen, parseErrorGen) {
+        (validCustomerDataset: DataSet[Customer], invalidCustomerDataset1: DataSet[Customer],
+         invalidCustomerDataset2: DataSet[Customer], headersNumber: Int, incorrectFieldNumber: Int, parseErrorList: List[String]) =>
+          (headersNumber != 0 && incorrectFieldNumber != 0) ==> {
 
-          checkCustomerETLProperties(wholeDataset).collect() must containTheSameElementsAs(validCustomerDataset.collect())
+            val stringValidCustomerDataset: DataSet[String] = validCustomerDataset.first(incorrectFieldNumber * 2).map(xs => toCSVFormat(xs))
+            val moreFieldsThanNeeded = stringValidCustomerDataset.first(incorrectFieldNumber).map(xs => xs + ",extra_field")
+            val lessFieldsThanNeeded = stringValidCustomerDataset.first(incorrectFieldNumber).map(xs => xs.split(",").take(3).mkString(","))
+
+            val wholeDataset = env.fromCollection(List.fill(headersNumber)("Name, Address, NationId, AcctBal"))
+              .union(moreFieldsThanNeeded)
+              .union(lessFieldsThanNeeded)
+              .union(invalidCustomerDataset1.map(xs => toCSVFormat(xs)))
+              .union(invalidCustomerDataset2.map(xs => toCSVFormat(xs)))
+              .union(createDifferentFieldTypesCustomer(parseErrorList))
+              .union(validCustomerDataset.map(xs => toCSVFormat(xs)))
+
+            checkCustomerETLProperties(wholeDataset) must flink.DataSetMatchers.beEqualDataSetTo(validCustomerDataset)
+          }
+
       }.set(minTestsOk = 20)
 
 
   "notCheckingRanges: It has to fail because no range validation is done" >>
-    Prop.forAll(validCustomerGen, invalidCustomerGen) {
-      (validCustomerDataset: DataSet[Customer], invalidCustomerDataset: DataSet[Customer]) =>
-        val wholeDataset = headers
-          .union(parseError)
-          .union(validCustomerDataset.map(xs => toCSVFormat(xs)))
-          .union(invalidCustomerDataset.map(xs => toCSVFormat(xs)))
+    Prop.forAll(validCustomerGen, invalidCustomerGen1, invalidCustomerGen2, headersNumberGen, incorrectFieldNumberGen, parseErrorGen) {
+      (validCustomerDataset: DataSet[Customer], invalidCustomerDataset1: DataSet[Customer],
+       invalidCustomerDataset2: DataSet[Customer], headersNumber: Int, incorrectFieldNumber: Int, parseErrorList: List[String]) =>
+        (headersNumber != 0 && incorrectFieldNumber != 0) ==> {
 
-      checkCustomerETLProperties(wholeDataset, rangeValidation = false).collect() must_!=  containTheSameElementsAs(validCustomerDataset.collect())
+          val stringValidCustomerDataset: DataSet[String] = validCustomerDataset.first(incorrectFieldNumber * 2).map(xs => toCSVFormat(xs))
+          val moreFieldsThanNeeded = stringValidCustomerDataset.first(incorrectFieldNumber).map(xs => xs + ",extra_field")
+          val lessFieldsThanNeeded = stringValidCustomerDataset.first(incorrectFieldNumber).map(xs => xs.split(",").take(3).mkString(","))
+
+          val wholeDataset = env.fromCollection(List.fill(headersNumber)("Name, Address, NationId, AcctBal"))
+            .union(moreFieldsThanNeeded)
+            .union(lessFieldsThanNeeded)
+            .union(invalidCustomerDataset1.map(xs => toCSVFormat(xs)))
+            .union(invalidCustomerDataset2.map(xs => toCSVFormat(xs)))
+            .union(createDifferentFieldTypesCustomer(parseErrorList))
+            .union(validCustomerDataset.map(xs => toCSVFormat(xs)))
+
+          checkCustomerETLProperties(wholeDataset, rangeValidation = false) must flink.DataSetMatchers.nonBeEqualDataSetTo(validCustomerDataset)
+        }
+
     }.set(minTestsOk = 20)
 
 
   "notCheckingTypeCorrectness: It has to fail because no data type validation is done" >>
-    Prop.forAll(validCustomerGen, invalidCustomerGen) {
-      (validCustomerDataset: DataSet[Customer], invalidCustomerDataset: DataSet[Customer]) =>
+    Prop.forAll(validCustomerGen, invalidCustomerGen1, invalidCustomerGen2, headersNumberGen, incorrectFieldNumberGen, parseErrorGen) {
+      (validCustomerDataset: DataSet[Customer], invalidCustomerDataset1: DataSet[Customer],
+       invalidCustomerDataset2: DataSet[Customer], headersNumber: Int, incorrectFieldNumber: Int, parseErrorList: List[String]) =>
+        (headersNumber != 0 && incorrectFieldNumber != 0) ==> {
 
-        val wholeDataset = headers
-          .union(parseError)
-          .union(validCustomerDataset.map(xs => toCSVFormat(xs)))
-          .union(invalidCustomerDataset.map(xs => toCSVFormat(xs)))
+          val stringValidCustomerDataset: DataSet[String] = validCustomerDataset.first(incorrectFieldNumber * 2).map(xs => toCSVFormat(xs))
+          val moreFieldsThanNeeded = stringValidCustomerDataset.first(incorrectFieldNumber).map(xs => xs + ",extra_field")
+          val lessFieldsThanNeeded = stringValidCustomerDataset.first(incorrectFieldNumber).map(xs => xs.split(",").take(3).mkString(","))
 
-        try {
-          checkCustomerETLProperties(wholeDataset, dataTypeValidation = false).collect() must_!= containTheSameElementsAs(validCustomerDataset.collect())
-        } catch {
-          case _: java.lang.Exception =>
-            ok
+          val wholeDataset = env.fromCollection(List.fill(headersNumber)("Name, Address, NationId, AcctBal"))
+            .union(moreFieldsThanNeeded)
+            .union(lessFieldsThanNeeded)
+            .union(invalidCustomerDataset1.map(xs => toCSVFormat(xs)))
+            .union(invalidCustomerDataset2.map(xs => toCSVFormat(xs)))
+            .union(createDifferentFieldTypesCustomer(parseErrorList))
+            .union(validCustomerDataset.map(xs => toCSVFormat(xs)))
+
+          checkCustomerETLProperties(wholeDataset, dataTypeValidation = false).collect() must throwA[Exception]
         }
 
     }.set(minTestsOk = 100)
