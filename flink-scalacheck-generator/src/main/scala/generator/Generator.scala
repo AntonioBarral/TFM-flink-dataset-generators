@@ -3,9 +3,13 @@ package generator
 import java.lang
 import java.io.{BufferedWriter, File, FileWriter}
 
-import org.apache.flink.api.common.functions.{RichMapPartitionFunction}
+import org.apache.flink.api.common.functions.RichMapPartitionFunction
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala._
+import org.apache.flink.table.api.Table
+import org.apache.flink.table.api.scala._
+import org.apache.flink.api.scala.utils._
+import org.apache.flink.table.api.scala.BatchTableEnvironment
 import org.apache.flink.util.Collector
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Gen.Parameters
@@ -58,16 +62,13 @@ object Generator {
 
   def generateDataSetGenerator[A: ClassTag : TypeInformation](numElements: Int, numPartitions: Int, g: Gen[A], seedOpt: Option[Int] = None)
                                                              (implicit env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment): Gen[DataSet[A]] = {
-    //Gen.listOfN(numPartitions, Arbitrary.arbitrary[Int]).apply(Parameters.default, Seed.apply(seed)).get
-    //val indexes: DataSet[Int] = env.fromElements(0 to numPartitions-1: _*)
+
     val seedGen: Gen[Int] = if (seedOpt.isDefined) Gen.const(seedOpt.get) else Arbitrary.arbitrary[Int]
 
     for {
-      //seeds <- Gen.listOfN(numPartitions, seedGen)
       seed <- seedGen
       seeds = Gen.listOfN(numPartitions, Arbitrary.arbitrary[Int]).apply(Parameters.default, Seed.apply(seed)).get
     } yield
-      //env.fromCollection(seeds)
       env.fromCollection(seeds)
       .rebalance() //Make a load balanced strategy scattering a number of lists equals to numPartitions, among the available task slots
       .flatMap { xs =>
@@ -77,9 +78,28 @@ object Generator {
       .setParallelism(numPartitions)
   }
 
+
+
+  def generateDataSetTableGenerator[A: ClassTag : TypeInformation](numElements: Int, numPartitions: Int, g: Gen[A], seedOpt: Option[Int] = None, auto_increment: Boolean = false)
+                                                             (implicit env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment): Gen[Table] = {
+
+    val tEnv = BatchTableEnvironment.create(env)
+    for {
+      dataSet <- generateDataSetGenerator(numElements, numPartitions, g, seedOpt)
+    } yield
+      if(auto_increment) tEnv.fromDataSet(dataSet.zipWithIndex, '_1, '_2).orderBy('_1) else tEnv.fromDataSet(dataSet)
+    //If A is primitive type, it is needed to access with 'f0 to operate. If not it has its vals names. e.g: Person -> val name and val age ==> 'name and 'age
+  }
+
   //Easy way to test generator
   def main(args: Array[String]): Unit = {
-    print(generateDataSetGenerator(1000000, 10, Gen.choose(1,100)).sample.get.count())
+    val env = ExecutionEnvironment.getExecutionEnvironment
+    val tEnv = BatchTableEnvironment.create(env)
+
+
+    val a: Table = generateDataSetTableGenerator(100, 10, Gen.oneOf(1,100)).sample.get
+    val d: DataSet[Int] = tEnv.toDataSet[Int](a.where('f0 === 50))
+    print(d.collect())
   }
 
 }
