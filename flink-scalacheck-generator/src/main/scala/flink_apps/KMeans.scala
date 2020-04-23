@@ -102,8 +102,8 @@ object KMeans {
    */
   trait Coordinate extends Serializable {
 
-    var x: Double
-    var y: Double
+    var x: Long
+    var y: Long
 
     def add(other: Coordinate): this.type = {
       x += other.x
@@ -133,12 +133,21 @@ object KMeans {
   /**
    * A simple two-dimensional point.
    */
-  case class Point(var x: Double = 0, var y: Double = 0) extends Coordinate
+  case class Point(var x: Long = 0, var y: Long = 0) extends Coordinate with Ordered [Point] {
+    override def compare(other: Point): Int = {
+      if (this.x == other.x && this.y == other.y)
+        0
+      else if (this.x > other.x || (this.x == other.x && this.y > other.y))
+        1
+      else
+        -1
+    }
+  }
 
   /**
    * A simple two-dimensional centroid, basically a point with an ID.
    */
-  case class Centroid(var id: Int = 0, var x: Double = 0, var y: Double = 0) extends Coordinate {
+  case class Centroid(var id: Int = 0, var x: Long = 0, var y: Long = 0) extends Coordinate with Ordered[Centroid] {
 
     def this(id: Int, p: Point) {
       this(id, p.x, p.y)
@@ -147,6 +156,14 @@ object KMeans {
     override def toString: String =
       s"$id ${super.toString}"
 
+    override def compare(other: Centroid): Int = {
+      if (this.id == other.id)
+        0
+      else if (this.id > other.id)
+        1
+      else
+        -1
+    }
   }
 
   /** Determines the closest cluster center for a data point. */
