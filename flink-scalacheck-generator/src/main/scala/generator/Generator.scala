@@ -67,7 +67,7 @@ object Generator {
 
     for {
       seed <- seedGen
-      seeds = Gen.listOfN(numPartitions, Arbitrary.arbitrary[Int]).apply(Parameters.default, Seed.apply(seed)).get
+      seeds = Gen.listOfN(numPartitions, Gen.chooseNum(Int.MinValue, Int.MaxValue)).apply(Parameters.default, Seed.apply(seed)).get
     } yield
       env.fromCollection(seeds)
       .rebalance() //Make a load balanced strategy scattering a number of lists equals to numPartitions, among the available task slots
@@ -81,9 +81,8 @@ object Generator {
 
 
   def generateDataSetTableGenerator[A: ClassTag : TypeInformation](numElements: Int, numPartitions: Int, g: Gen[A], seedOpt: Option[Int] = None, auto_increment: Boolean = false)
-                                                             (implicit env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment): Gen[Table] = {
+                                                             (implicit tEnv: BatchTableEnvironment, env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment): Gen[Table] = {
 
-    val tEnv = BatchTableEnvironment.create(env)
     for {
       dataSet <- generateDataSetGenerator(numElements, numPartitions, g, seedOpt)
     } yield
@@ -94,11 +93,10 @@ object Generator {
   //Easy way to test generator
   def main(args: Array[String]): Unit = {
     val env = ExecutionEnvironment.getExecutionEnvironment
-    val tEnv = BatchTableEnvironment.create(env)
+    implicit val tEnv = BatchTableEnvironment.create(env)
 
-
-    val a: Table = generateDataSetTableGenerator(100, 10, Gen.oneOf(1,100)).sample.get
-    val d: DataSet[Int] = tEnv.toDataSet[Int](a.where('f0 === 50))
+    val a: Table = generateDataSetTableGenerator(100, 10, Gen.choose(1,100)).sample.get
+    val d: DataSet[Int] = tEnv.toDataSet[Int](a.where('f0 > 50))
     print(d.collect())
   }
 
