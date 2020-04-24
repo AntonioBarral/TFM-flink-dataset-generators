@@ -1,12 +1,9 @@
 import flink_apps.KMeans
 import generator.Generator
 
-import es.ucm.fdi.sscheck.matcher.specs2.flink
-
 import flink_apps.KMeans.{Centroid, Point}
 
 import org.apache.flink.api.scala._
-import org.apache.flink.api.scala.utils._
 import org.scalacheck.{Gen, Prop}
 import org.specs2.ScalaCheck
 import org.specs2.matcher.ResultMatchers
@@ -34,15 +31,15 @@ class KMeansTestSpecs extends org.specs2.mutable.Specification with ScalaCheck w
     x <- Gen.choose(-100, 100)
     y <- Gen.choose(-100, 100)
   } yield  Centroid(1, x, y)
-  private val numPointsperCentroidGen = Gen.choose(50, 100)
+
   private val numCentroidsGen = Gen.choose(2,5)
   private val iterationsGen = Gen.choose(10,20)
   private val centroidsDistanceGen = Gen.choose(5, 20)
 
 
   "This property checks that initial centroids points assign in a line belongs to the same class, after KMeans algorithm" >>
-    Prop.forAll(initialCentroidGen, numPointsperCentroidGen, numCentroidsGen, iterationsGen, centroidsDistanceGen) {
-      (initialCentroid: Centroid, numPointsperCentroid: Int, numCentroids: Int, iterations: Int, centroidsDistance: Int) =>
+    Prop.forAll(initialCentroidGen, numCentroidsGen, iterationsGen, centroidsDistanceGen) {
+      (initialCentroid: Centroid, numCentroids: Int, iterations: Int, centroidsDistance: Int) =>
 
         val pointsInRadiusGen: Gen[Int] = Gen.choose(1, centroidsDistance/2)
         var centroids: List[Centroid] = List(initialCentroid)
