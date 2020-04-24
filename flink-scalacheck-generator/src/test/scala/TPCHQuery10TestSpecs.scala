@@ -1,21 +1,19 @@
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Date}
 
-import TPCHQuery10TestSpecs.{Customer, Lineitem, Nation, Order, toCSVFormat, validRanges, validTypes}
+import TPCHQuery10TestSpecs._
 import es.ucm.fdi.sscheck.matcher.specs2.flink
 import flink_apps.TPCHQuery10
 import generator.Generator
-import utilities.TableApiUDF
-import org.apache.flink.api.scala.DataSet
+import org.apache.flink.api.scala.{DataSet, _}
 import org.apache.flink.api.scala.utils._
-import org.apache.flink.api.scala._
 import org.apache.flink.table.api.Table
-import org.apache.flink.table.api.scala._
-import org.apache.flink.table.api.scala.BatchTableEnvironment
-import org.scalacheck.{Arbitrary, Gen, Prop}
+import org.apache.flink.table.api.scala.{BatchTableEnvironment, _}
 import org.scalacheck.Prop.propBoolean
+import org.scalacheck.{Arbitrary, Gen, Prop}
 import org.specs2.ScalaCheck
 import org.specs2.matcher.ResultMatchers
+import utilities.TableApiUDF
 
 import scala.util.control.Exception.allCatch
 
@@ -66,8 +64,7 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
   override val seed: Int = 0
 
   override implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
-  private val tEnv = BatchTableEnvironment.create(env)
-
+  implicit val tEnv: BatchTableEnvironment = BatchTableEnvironment.create(env)
 
   def rangeDates(): List[String] = {
     val sf = new SimpleDateFormat("yyyy-m-d")
@@ -82,7 +79,7 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
           cal.add(Calendar.DAY_OF_YEAR, 1)
           sf.format(d)
         }.
-        takeWhile(_ => cal.getTimeInMillis() <= now.getTime).
+        takeWhile(_ => cal.getTimeInMillis <= now.getTime).
         toList
 
     dates
@@ -110,6 +107,27 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
 
 
   /**
+   * Creates customer generator with name, address, nationId and acctbal. Customer id will be generated later
+   * because it will always have from 1 to elements* partitions values
+   *
+   * @return Generator of a Table of customers
+   */
+  def createTableGeneratorCustomers(seed: Option[Int] = None, acctBalMin: Double = 100.0, acctBalMax: Double = 1000.0, auto_increment: Boolean = false): Gen[Table] = {
+    val totalElements = elements * partitions
+
+    val genCustomer: Gen[Customer] = for {
+      name <- Gen.oneOf("Enrique", "Juan", "Antonio", "Ramon", "Olaya", "Carla", "Pedro", "Virginia", "Maria", "Cecilia", "Marta", "Yolanda", "Javier", "Marcos", "Mario", "Luigi")
+      address <- Gen.listOfN(15, Gen.alphaChar).map(_.mkString)
+      nationId <- Gen.choose(1, totalElements)
+      acctBal <- Gen.chooseNum(acctBalMin, acctBalMax).map(xs => Math.round(xs * 100.0) / 100.0)
+    } yield Customer(name, address, nationId, acctBal)
+
+
+    Generator.generateDataSetTableGenerator(elements, partitions, genCustomer, seed, auto_increment)
+  }
+
+
+  /**
    * Creates customer generator with customerId and orderDate. Order id will be generated later
    * because it will always have from 1 to elements* partitions values
    *
@@ -127,6 +145,26 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
     Generator.generateDataSetGenerator(elements, partitions, genOrders, seed)
   }
 
+
+  /**
+   * Creates customer generator with customerId and orderDate. Order id will be generated later
+   * because it will always have from 1 to elements* partitions values
+   *
+   * @return Generator of a Table of orders
+   */
+  def createTableGeneratorOrders(seed: Option[Int] = None, auto_increment: Boolean = false): Gen[Table] = {
+    val dateList = rangeDates() // Calculates range list before assign it to a generator to avoid serialization flink problems
+    val totalElements = elements * partitions
+
+    val genOrders: Gen[Order] = for {
+      custId <- Gen.choose(1, totalElements)
+      orderDate <- Gen.oneOf(dateList)
+    } yield Order(custId, orderDate)
+
+    Generator.generateDataSetTableGenerator(elements, partitions, genOrders, seed, auto_increment)
+  }
+
+
   /**
    * Creates customer generator with extended price, discount and returnFlag. LineItem id will be generated later
    * because it will always have from 1 to elements*partitions values
@@ -143,6 +181,24 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
     Generator.generateDataSetGenerator(elements, partitions, genLineItems, seed)
   }
 
+
+  /**
+   * Creates customer generator with extended price, discount and returnFlag. LineItem id will be generated later
+   * because it will always have from 1 to elements*partitions values
+   *
+   * @return Generator of a Table of lineItems
+   */
+  def createTableGeneratorLineItems(seed: Option[Int] = None, auto_increment: Boolean = false): Gen[Table] = {
+    val genLineItems: Gen[Lineitem] = for {
+      extPrice <- Gen.chooseNum(10000.0, 50000.0).map(xs => Math.round(xs * 100.0) / 100.0)
+      discount <- Gen.chooseNum(0.01, 0.1).map(xs => Math.round(xs * 100.0) / 100.0)
+      returnFlag <- Gen.oneOf("N", "A", "R")
+    } yield Lineitem(extPrice, discount, returnFlag)
+
+    Generator.generateDataSetTableGenerator(elements, partitions, genLineItems, seed, auto_increment)
+  }
+
+
   /**
    * Creates customer generator with name. NationId will be generated later
    * because it will always have from 1 to elements* partitions values
@@ -156,22 +212,43 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
     Generator.generateDataSetGenerator(elements, partitions, genNations, seed)
   }
 
-  //Test 1
+
+  /**
+   * Creates customer generator with name. NationId will be generated later
+   * because it will always have from 1 to elements* partitions values
+   *
+   * @return Generator of a Table of nations
+   */
+  def createTableGeneratorNations(seed: Option[Int] = None, auto_increment: Boolean = false): Gen[Table] = {
+    val genNations: Gen[Nation] = for {
+      nation <- Gen.oneOf("Spain", "France", "Italy", "UK", "Greece", "Portugal", "Rusia", "Chine", "Japan", "Germany", "Netherlands", "Denmark", "Finland", "Mexico", "Brazil", "Canada")
+    } yield Nation(nation)
+    Generator.generateDataSetTableGenerator(elements, partitions, genNations, seed, auto_increment)
+  }
+
+
+
+
   val customersGen: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers()
   val ordersGen: Gen[DataSet[Order]] = createDatasetGeneratorOrders()
   val lineItemsGen: Gen[DataSet[Lineitem]] = createDatasetGeneratorLineItems()
   val nationsGen: Gen[DataSet[Nation]] = createDatasetGeneratorNations()
 
+  val customersTableGen: Gen[Table] = createTableGeneratorCustomers(auto_increment = true)
+  val ordersTableGen: Gen[Table] = createTableGeneratorOrders(auto_increment = true)
+  val lineItemsTableGen: Gen[Table] = createTableGeneratorLineItems(auto_increment = true)
+  val nationsTableGen: Gen[Table] = createTableGeneratorNations(auto_increment = true)
+
   val toIntFunct = new TableApiUDF.ToInt()
 
   //Test2 and test3
-  val seedGen1: Gen[Int] = Gen.choose(1, 100000)
-  val seedGen2: Gen[Int] = Gen.choose(1, 100000)
+  val seedGen1: Gen[Int] = Gen.choose(Int.MinValue, Int.MaxValue)
+  val seedGen2: Gen[Int] = Gen.choose(Int.MinValue, Int.MaxValue)
 
   //ETL tests
 
 
-  "Using API table over generated datasets, produces the same result when TPCHQuery is calculated with flink example function, using the same generated datasets" >>
+  "Using API table over generated Gen[DataSet[A]], produces the same result when TPCHQuery is calculated with flink example function, using the same generated datasets" >>
     Prop.forAll(customersGen, ordersGen, lineItemsGen, nationsGen) {
       (dCustomer: DataSet[Customer], dOrders: DataSet[Order], dLineItem: DataSet[Lineitem], dNations: DataSet[Nation]) =>
         val dCustomerId = dCustomer.zipWithUniqueId.map(xs => (xs._1, xs._2.name, xs._2.address, xs._2.nationId, xs._2.acctBal))
@@ -199,7 +276,8 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
         datasetApiResult must flink.DataSetMatchers.beEqualDataSetTo(resultTPCH)
 
 
-    }.set(minTestsOk = 1)
+    }.set(minTestsOk = 20)
+
 
   "This property checks that 2 gens with different seeds are different always" >>
     Prop.forAll(seedGen1, seedGen2) {
@@ -207,11 +285,11 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
         (seed1 != seed2) ==> {
           val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed1))
           val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed2))
-
           d1.sample.get must flink.DataSetMatchers.nonBeEqualDataSetTo(d2.sample.get)
         }
 
-    }.set(minTestsOk = 20)
+    }.set(minTestsOk = 100)
+
 
   "This property checks that 1 gen producing a seed to produce 2 gen datasets, generates the same gen datasets" >>
     Prop.forAll(seedGen1) {
@@ -221,7 +299,19 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
 
         d1.sample.get must flink.DataSetMatchers.beEqualDataSetTo(d2.sample.get)
 
-    }.set(minTestsOk = 5)
+    }.set(minTestsOk = 50)
+
+
+  "This property checks that 1 gen producing a seed to produce a Gen[DataSet[A]] and a Gen[Table], generates the same set of data" >>
+    Prop.forAll(seedGen1) {
+      seed: Int =>
+        val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
+        val t2: Gen[Table] = createTableGeneratorCustomers(Some(seed))
+        val d2: DataSet[Customer] = tEnv.toDataSet(t2.sample.get)
+
+        d1.sample.get must flink.DataSetMatchers.beEqualDataSetTo(d2)
+
+    }.set(minTestsOk = 50)
 
 
   /**
@@ -237,9 +327,9 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
   /**
    * Checks if dataset accomplish the ETL rules defined
    *
-   * @param customerStringDataset
-   * @param rangeValidation
-   * @param dataTypeValidation
+   * @param customerStringDataset contains rows with customer attribute values
+   * @param rangeValidation if true applies a range validation
+   * @param dataTypeValidation if true applies a data type validation
    * @return dataset with data that accomplishes the rules
    */
   def checkCustomerETLProperties(customerStringDataset: DataSet[String], rangeValidation: Boolean = true, dataTypeValidation : Boolean = true): DataSet[Customer] = {
@@ -287,8 +377,8 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
     private val incorrectFieldNumberGen: Gen[Int] =  Gen.choose(0, elements)
     private val parseErrorGen: Gen[List[String]] = Gen.listOfN(elements, Gen.oneOf("NaN", "NA", "Double", "Int"))
 
-    "parseAndValidate: Only data belonging to validCustomer accomplishes ETL rules defined before" >>
-      Prop.forAll(validCustomerGen, invalidCustomerGen1, invalidCustomerGen2, headersNumberGen, incorrectFieldNumberGen, parseErrorGen) {
+  "parseAndValidate: Only data belonging to validCustomer accomplishes ETL rules defined before" >>
+    Prop.forAll(validCustomerGen, invalidCustomerGen1, invalidCustomerGen2, headersNumberGen, incorrectFieldNumberGen, parseErrorGen) {
         (validCustomerDataset: DataSet[Customer], invalidCustomerDataset1: DataSet[Customer],
          invalidCustomerDataset2: DataSet[Customer], headersNumber: Int, incorrectFieldNumber: Int, parseErrorList: List[String]) =>
           (headersNumber != 0 && incorrectFieldNumber != 0) ==> {
