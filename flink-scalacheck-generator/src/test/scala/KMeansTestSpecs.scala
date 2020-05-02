@@ -44,6 +44,7 @@ class KMeansTestSpecs extends org.specs2.mutable.Specification with ScalaCheck w
         val pointsInRadiusGen: Gen[Int] = Gen.choose(1, centroidsDistance/2)
         var centroids: List[Centroid] = List(initialCentroid)
 
+        //Fill points DataSet for the initial centroid
         var pointsDataSet: DataSet[Point] =
           createPointsGenerator(
             initialCentroid.x.toInt - pointsInRadiusGen.sample.get, initialCentroid.x.toInt + pointsInRadiusGen.sample.get,
@@ -71,7 +72,6 @@ class KMeansTestSpecs extends org.specs2.mutable.Specification with ScalaCheck w
 
         val result = KMeans.kMeansCalc(pointsDataSet, centroidsDataSet, iterations)
         val clusteredPoints: DataSet[(Int, Point)] = result._1
-        val finalCentroids: DataSet[Centroid] = result._2
 
         //Get the points which were the initialCentroids
         val initialPoints: List[Centroid] = clusteredPoints
@@ -80,11 +80,6 @@ class KMeansTestSpecs extends org.specs2.mutable.Specification with ScalaCheck w
           .map(xs => Centroid(xs._1, xs._2.x, xs._2.y))
           .collect().toList
 
-        println("Centroids " + centroidsDataSet.collect())
-        //println("InitialPoints "+ initialPoints)
-        println("Final centroids " + finalCentroids.collect())
-        //println("Points " + pointsDataSet.collect())
-        //println(clusteredPoints.filter(xs => xs._1 == 1).collect())
         initialPoints must containTheSameElementsAs(centroids)
 
     }.set(minTestsOk = 100)

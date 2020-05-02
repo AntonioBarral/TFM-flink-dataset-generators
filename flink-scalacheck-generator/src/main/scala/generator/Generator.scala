@@ -67,7 +67,7 @@ object Generator {
 
     for {
       seed <- seedGen
-      seeds = Gen.listOfN(numPartitions, Gen.chooseNum(Int.MinValue, Int.MaxValue)).apply(Parameters.default, Seed.apply(seed)).get
+      seeds = Gen.listOfN(numPartitions, Arbitrary.arbitrary[Int]).apply(Parameters.default, Seed.apply(seed)).get
     } yield
       env.fromCollection(seeds)
       .rebalance() //Make a load balanced strategy scattering a number of lists equals to numPartitions, among the available task slots
@@ -89,16 +89,5 @@ object Generator {
       if(auto_increment) tEnv.fromDataSet(dataSet.zipWithIndex, '_1, '_2).orderBy('_1) else tEnv.fromDataSet(dataSet)
     //If A is primitive type, it is needed to access with 'f0 to operate. If not it has its vals names. e.g: Person -> val name and val age ==> 'name and 'age
   }
-
-  //Easy way to test generator
-  def main(args: Array[String]): Unit = {
-    val env = ExecutionEnvironment.getExecutionEnvironment
-    implicit val tEnv = BatchTableEnvironment.create(env)
-
-    val a: Table = generateDataSetTableGenerator(100, 10, Gen.choose(1,100)).sample.get
-    val d: DataSet[Int] = tEnv.toDataSet[Int](a.where('f0 > 50))
-    print(d.collect())
-  }
-
 }
 
