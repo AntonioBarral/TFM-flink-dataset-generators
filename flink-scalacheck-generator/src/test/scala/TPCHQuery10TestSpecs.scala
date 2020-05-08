@@ -21,6 +21,13 @@ import scala.util.control.Exception.allCatch
 object TPCHQuery10TestSpecs {
 
   //Companion classes
+  /**
+   * Customer object to use it in TPCH test
+   * @param name customer name
+   * @param address customer address
+   * @param nationId customer nation id
+   * @param acctBal customer acctBal
+   */
   case class Customer(name: String, address:String, nationId: Long, acctBal: Double) extends Ordered [Customer] {
     override def compare(other: Customer): Int = {
       if (this.address == other.address)
@@ -31,31 +38,63 @@ object TPCHQuery10TestSpecs {
         -1
     }
   }
+
+  /**
+   * Order object to use it in TPCH test
+   * @param custId Customer id from who did the order
+   * @param orderDate Order date
+   */
   case class Order(custId: Long, orderDate: String)
+
+  /**
+   * Line item object to use it in TPCH test
+   * @param extPrice Line item price
+   * @param discount Line item discount
+   * @param returnFlag Line item flag
+   */
   case class Lineitem(extPrice: Double, discount: Double, returnFlag: String)
+
+  /**
+   * Nation object to use it in TPCH test
+   * @param nation nation
+   */
   case class Nation(nation: String)
 
 
-  //Companion defs
+  /**
+   * Compare if Customer range values are valid
+   * @param c Customer
+   * @return true if valid
+   */
   def validRanges(c: Customer): Boolean = {
     c.acctBal <= 1000.0 && c.acctBal > 0.0
   }
 
-
+  /**
+   * Converts a Customer to a csv style in String format
+   * @param c Customer
+   * @return String with csv format containing Customer fields separated by commas
+   */
   def toCSVFormat(c: Customer): String = {
     c.name + ',' + c.address + ',' + c.nationId + ',' + c.acctBal
   }
 
-
+  /**
+   * Check the correctness of every Customer field
+   * @param l Array of string Customer values
+   * @return true if every field is valid
+   */
   def validTypes(l: Array[String]): Boolean = {
-   allCatch.opt(l(0).toInt).isEmpty && allCatch.opt(l(0).toDouble).isEmpty && allCatch.opt(l(0).toString).isDefined &&
-   allCatch.opt(l(1).toInt).isEmpty && allCatch.opt(l(1).toDouble).isEmpty && allCatch.opt(l(1).toString).isDefined &&
+   allCatch.opt(l(0).toInt).isEmpty && allCatch.opt(l(0).toDouble).isEmpty && allCatch.opt(l(0)).isDefined &&
+   allCatch.opt(l(1).toInt).isEmpty && allCatch.opt(l(1).toDouble).isEmpty && allCatch.opt(l(1)).isDefined &&
    !l(2).contains('.') && allCatch.opt(l(2).toInt).isDefined &&
    allCatch.opt(l(3).toInt).isEmpty && allCatch.opt(l(3).toDouble).isDefined
   }
 }
 
-
+/**
+ * Class to test DataSet Gen in TPCHQuery10 example from Apache Flink github example located in [[flink_apps.TPCHQuery10]]
+ */
 class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCheck with ResultMatchers with GeneratorTest {
   sequential
 
@@ -66,11 +105,15 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
   override implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
   implicit val tEnv: BatchTableEnvironment = BatchTableEnvironment.create(env)
 
+  /**
+   * Creates a range of dates from Jan 1 1985
+   * @return List of dates in String format
+   */
   def rangeDates(): List[String] = {
     val sf = new SimpleDateFormat("yyyy-m-d")
     val now = new Date
     val cal = Calendar.getInstance()
-    cal.set(1985, 0, 1) //Jan 1 2010
+    cal.set(1985, 0, 1) //Jan 1 1985
 
     val dates =
       Iterator.
@@ -241,13 +284,8 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
 
   val toIntFunct = new TableApiUDF.ToInt()
 
-  //Test2 and test3
-  val seedGen1: Gen[Int] = Gen.choose(Int.MinValue, Int.MaxValue)
-  val seedGen2: Gen[Int] = Gen.choose(Int.MinValue, Int.MaxValue)
 
   //ETL tests
-
-
   "Using API table over generated Gen[DataSet[A]], produces the same result when TPCHQuery is calculated with flink example function, using the same generated datasets" >>
     Prop.forAll(customersGen, ordersGen, lineItemsGen, nationsGen) {
       (dCustomer: DataSet[Customer], dOrders: DataSet[Order], dLineItem: DataSet[Lineitem], dNations: DataSet[Nation]) =>
@@ -278,40 +316,6 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
 
     }.set(minTestsOk = 20)
 
-
-  "This property checks that 2 gens with different seeds are different always" >>
-    Prop.forAll(seedGen1, seedGen2) {
-      (seed1: Int, seed2: Int) =>
-        (seed1 != seed2) ==> {
-          val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed1))
-          val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed2))
-          d1.sample.get must flink.DataSetMatchers.nonBeEqualDataSetTo(d2.sample.get)
-        }
-
-    }.set(minTestsOk = 100)
-
-
-  "This property checks that 1 gen producing a seed to produce 2 gen datasets, generates the same gen datasets" >>
-    Prop.forAll(seedGen1) {
-      seed: Int =>
-        val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
-        val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
-
-        d1.sample.get must flink.DataSetMatchers.beEqualDataSetTo(d2.sample.get)
-
-    }.set(minTestsOk = 50)
-
-
-  "This property checks that 1 gen producing a seed to produce a Gen[DataSet[A]] and a Gen[Table], generates the same set of data" >>
-    Prop.forAll(seedGen1) {
-      seed: Int =>
-        val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
-        val t2: Gen[Table] = createTableGeneratorCustomers(Some(seed))
-        val d2: DataSet[Customer] = tEnv.toDataSet(t2.sample.get)
-
-        d1.sample.get must flink.DataSetMatchers.beEqualDataSetTo(d2)
-
-    }.set(minTestsOk = 50)
 
 
   /**
@@ -447,4 +451,44 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
         }
 
     }.set(minTestsOk = 100)
+
+
+
+  //Generic test to compare DataSets and Tables using seeds
+  val seedGen1: Gen[Int] = Gen.choose(Int.MinValue, Int.MaxValue)
+  val seedGen2: Gen[Int] = Gen.choose(Int.MinValue, Int.MaxValue)
+
+  "This property checks that 2 gens with different seeds are different always" >>
+    Prop.forAll(seedGen1, seedGen2) {
+      (seed1: Int, seed2: Int) =>
+        (seed1 != seed2) ==> {
+          val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed1))
+          val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed2))
+          d1.sample.get must flink.DataSetMatchers.nonBeEqualDataSetTo(d2.sample.get)
+        }
+
+    }.set(minTestsOk = 100)
+
+
+  "This property checks that 1 gen producing a seed to produce 2 gen datasets, generates the same gen datasets" >>
+    Prop.forAll(seedGen1) {
+      seed: Int =>
+        val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
+        val d2: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
+
+        d1.sample.get must flink.DataSetMatchers.beEqualDataSetTo(d2.sample.get)
+
+    }.set(minTestsOk = 50)
+
+
+  "This property checks that 1 gen producing a seed to produce a Gen[DataSet[A]] and a Gen[Table], generates the same set of data" >>
+    Prop.forAll(seedGen1) {
+      seed: Int =>
+        val d1: Gen[DataSet[Customer]] = createDatasetGeneratorCustomers(Some(seed))
+        val t2: Gen[Table] = createTableGeneratorCustomers(Some(seed))
+        val d2: DataSet[Customer] = tEnv.toDataSet(t2.sample.get)
+
+        d1.sample.get must flink.DataSetMatchers.beEqualDataSetTo(d2)
+
+    }.set(minTestsOk = 50)
 }

@@ -8,6 +8,9 @@ import org.scalacheck.{Gen, Prop}
 import org.specs2.ScalaCheck
 import org.specs2.matcher.ResultMatchers
 
+/**
+ * Class to test DataSet Gen in KMeans example from Apache Flink github example located in [[flink_apps.KMeans]]
+ */
 class KMeansTestSpecs extends org.specs2.mutable.Specification with ScalaCheck with ResultMatchers with GeneratorTest {
   sequential
 
@@ -17,6 +20,14 @@ class KMeansTestSpecs extends org.specs2.mutable.Specification with ScalaCheck w
   override val elements: Int = 100
   override val seed: Int = 0
 
+  /**
+   * Creates a Point DataSet Gen using coordinates within the provided range
+   * @param xMin min x
+   * @param xMax max x
+   * @param yMin min y
+   * @param yMax max y
+   * @return Point DataSet Gen
+   */
   def createPointsGenerator(xMin: Int, xMax: Int, yMin: Int, yMax: Int): Gen[DataSet[Point]] = {
     val genPoint: Gen[Point] = for {
       x <- Gen.choose(xMin, xMax)
@@ -26,7 +37,6 @@ class KMeansTestSpecs extends org.specs2.mutable.Specification with ScalaCheck w
     Generator.generateDataSetGenerator(elements, partitions, genPoint)
   }
 
-  //Test 1
   private val initialCentroidGen = for {
     x <- Gen.choose(-100, 100)
     y <- Gen.choose(-100, 100)

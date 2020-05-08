@@ -3,7 +3,6 @@ import flink_apps.WordCount
 import generator.Generator
 import org.apache.flink.api.scala.{DataSet, ExecutionEnvironment}
 import org.apache.flink.api.scala._
-import org.apache.flink.table.api.scala._
 import org.apache.flink.table.api.Table
 import org.apache.flink.table.api.scala.BatchTableEnvironment
 import org.scalacheck.{Gen, Prop}
@@ -12,6 +11,9 @@ import org.specs2.matcher.ResultMatchers
 
 import scala.collection.mutable.ListBuffer
 
+/**
+ * Class to test DataSet Gen in WordCount example from Apache Flink github example located in [[flink_apps.WordCount]]
+ */
 class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaCheck with ResultMatchers with GeneratorTest  {
   sequential
 
@@ -62,16 +64,12 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
     genDatasets :+= createGenerator(valueDatasets(index))
   }
 
-  //For test 1 in p1
   val genDatasetAntonio: Gen[DataSet[String]] = createGenerator("antonio")
   val genDatasetEnrique: Gen[DataSet[String]] = createGenerator("enrique")
   val genDatasetJuan: Gen[DataSet[String]] = createGenerator("juan")
-
-  //For test 2 in p2
   val genDatasetRandomStrings: Gen[DataSet[String]] = createGenerator()
 
 
-  //ScalaCheck test
   "Count total elements joining 3 datasets and check it is the same compared to the flink wordcount program" >>
     Prop.forAll(genDatasetAntonio, genDatasetEnrique, genDatasetJuan){
     (d1: DataSet[String], d2: DataSet[String], d3: DataSet[String]) =>
@@ -80,6 +78,7 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
       WordCount.wordCountDataSetCalc(allDatasets).map{case (_,t2) => t2}.sum must_== totalCount
 
   }.set(minTestsOk = 50)
+
 
   "Total count - elements must be different than total count" >>
     Prop.forAll(genDatasetAntonio, genDatasetEnrique, genDatasetJuan){
@@ -109,8 +108,11 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
   "Dataset generated is never empty" >> Prop.forAll(genDatasetRandomStrings) {
     d: DataSet[String] =>
       d must flink.DataSetMatchers.beNonEmptyDataSet()
+
   }.set(minTestsOk = 50)
 
+
+  //The next test is for Table Generator, using its own WordCount example
 
   private val genElementst1 = Gen.choose(0,100)
   private val genElementst2 = Gen.choose(0,100)
@@ -125,14 +127,12 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
         if (elementsT1 < elementsT2){
           greater = "bar"
         }
-        val winnerWordDataSet = WordCount.wordCountTableCalc(tUnion, Math.max(elementsT1, elementsT2)*partitions)
 
+        val winnerWordDataSet = WordCount.wordCountTableCalc(tUnion, Math.max(elementsT1, elementsT2)*partitions)
         winnerWordDataSet.collect().head.word == greater
 
       }
   }
-
-
 }
 
 
