@@ -1,12 +1,22 @@
 import org.scalameter.api._
 import org.scalacheck.Test
 import org.apache.flink.api.scala.ExecutionEnvironment
+import org.scalameter.Key
 
-
+/** Object which calls different Benchmarks. Only run one at the same time */
 object GeneratorBenchmark extends Bench.Group {
-  include(new SmallGeneratorBenchmark {})
-  include(new MediumGeneratorBenchmark {})
+  private final val mainPath = "/home/antonio/Desktop/"
+
+  Key.reports.resultDir -> mainPath + "SmallGeneratorBenchmark"
+  //include(new SmallGeneratorBenchmark {})
+
+  Key.reports.resultDir -> mainPath + "MediumGeneratorBenchmark"
+  //include(new MediumGeneratorBenchmark {})
+
+  Key.reports.resultDir -> mainPath + "HighGeneratorBenchmark"
   include(new HighGeneratorBenchmark {})
+
+  Key.reports.resultDir -> mainPath + "HugeGeneratorBenchmark"
   include(new HugeGeneratorBenchmark {})
 }
 

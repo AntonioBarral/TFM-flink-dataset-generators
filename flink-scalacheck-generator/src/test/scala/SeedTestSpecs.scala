@@ -6,8 +6,8 @@ import generator.Generator.FaultTolerantSeeds
 import utilities.FilesPath
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.time.Time
-import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.scala.ExecutionEnvironment
+import org.apache.flink.api.scala._
 import org.scalacheck.Gen
 import org.specs2.matcher.MatchResult
 import org.specs2.specification.BeforeAll
@@ -15,9 +15,7 @@ import org.specs2.specification.BeforeAll
 class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest with BeforeAll {
   sequential
 
-  implicit val typeInfo: TypeInformation[Int] = TypeInformation.of(classOf[Int])
   override implicit val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
-
 
   override val elements = 10
   override val partitions = 10
@@ -30,18 +28,26 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
     = (Map(), Array())
 
 
-   def createGenerator(): Unit = {
+  /**
+   * Set a restart strategy for Flink environment and creates DataSet Gem
+   */
+   def createGenerator(seed: Option[Int] = None): Unit = {
     env.setRestartStrategy(RestartStrategies.fixedDelayRestart(
       attempts-1, // number of restart attempts
       Time.of(2, TimeUnit.SECONDS) // delay
     ))
 
 
-    val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen)
+    val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen, seed)
     genDataset.sample.get.mapPartition(new FaultTolerantSeeds[Int]).count()
   }
 
-
+  /**
+   * From temp files of each partition in each attempt, values are read and store
+   * @param tempPathMatrix Matrix which contains path of tmp file regarding the attempt (row) and partition (col)
+   * @return a tuple which contains in first position a map with values of a entire dataset in each attempts, and a matrix
+   *         with values created for a partition (row) in an attempts(col)
+   */
   def getTestGeneratedValues(tempPathMatrix :Array[Array[String]]): (Map[Int, List[String]], Array[Array[List[String]]]) = {
     var datasetValues: Map[Int, List[String]] = Map()
     val partitionValues = Array.ofDim[List[String]](partitions, attempts)
@@ -65,7 +71,9 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
   }
 
 
-
+  /**
+   * Before tests, data is read from tmp files and stored in generatedValues
+   */
   def beforeAll(): Unit = {
     FilesPath.initFilePathMatrix(partitions, attempts)
 
@@ -86,6 +94,11 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
  The whole dataset is equal in each attempt $datasetByAttempt
 """
 
+  /**
+   * Checks that every worker has generated the same data in each attempt (a worker can have assigned more than one
+   * partition)
+   * @return ok if data is equal
+   */
   def dataByWorker: MatchResult[Any] = {
     /* Map structure:
     {
@@ -103,7 +116,10 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
   }
 
 
-
+  /**
+   * Checks that every dataset generated has the same values in each attempt
+   * @return ok if data is equal
+   */
   def datasetByAttempt: MatchResult[Any] = {
     /* Map structure:
     {
