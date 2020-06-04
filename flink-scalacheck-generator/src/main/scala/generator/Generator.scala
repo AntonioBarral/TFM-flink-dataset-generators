@@ -117,9 +117,9 @@ object Generator {
                                                              (implicit tEnv: BatchTableEnvironment, env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment): Gen[Table] = {
 
     for {
-      dataSet <- generateDataSetGenerator(numElements, numPartitions, g, seedOpt)
+      d <- generateDataSetGenerator(numElements, numPartitions, g, seedOpt)
     } yield
-      if(auto_increment) tEnv.fromDataSet(dataSet.zipWithIndex, '_1, '_2).orderBy('_1) else tEnv.fromDataSet(dataSet)
+      if(auto_increment) tEnv.fromDataSet(d.zipWithIndex, '_1, '_2).orderBy('_1) else tEnv.fromDataSet(d)
     //If A is primitive type, it is needed to access with 'f0 to operate. If not it has its vals names. e.g: Person -> val name and val age ==> 'name and 'age
   }
 }

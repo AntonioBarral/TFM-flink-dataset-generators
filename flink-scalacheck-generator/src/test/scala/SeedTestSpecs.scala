@@ -39,7 +39,7 @@ class SeedTestSpecs extends  org.specs2.mutable.Specification with GeneratorTest
 
 
     val genDataset = Generator.generateDataSetGenerator(elements, partitions, gen, seed)
-    genDataset.sample.get.mapPartition(new FaultTolerantSeeds[Int]).count()
+    genDataset.sample.get.mapPartition(new FaultTolerantSeeds[Int]).count() //This count will not be executed because of the exception thrown before finishing rich map function
   }
 
   /**
