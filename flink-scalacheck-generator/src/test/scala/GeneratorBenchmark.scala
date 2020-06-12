@@ -14,10 +14,12 @@ object GeneratorBenchmark extends Bench.Group {
   //include(new MediumGeneratorBenchmark {})
 
   Key.reports.resultDir -> mainPath + "HighGeneratorBenchmark"
-  include(new HighGeneratorBenchmark {})
+  //include(new HighGeneratorBenchmark {})
 
   Key.reports.resultDir -> mainPath + "HugeGeneratorBenchmark"
-  include(new HugeGeneratorBenchmark {})
+  //include(new HugeGeneratorBenchmark {})
+
+  include(new LinealEquation {})
 }
 
 /**
@@ -38,7 +40,7 @@ trait SmallGeneratorBenchmark extends Bench.OfflineReport with GeneratorBenchmar
   listWorkers.foreach { partitionNumber =>
 
     //A graph is created for each number of partitions to measure
-      performance of "Graph with " + partitionNumber + " worker(s)" in {
+      performance of "Graph with " + partitionNumber + " partition(s)" in {
         exec.independentSamples -> partitionNumber //Run in different JVM, regarding number of partitions
 
         val elementsGen = Gen.range("size")(initElements, incrementElements*iterations, incrementElements)
@@ -77,7 +79,7 @@ trait MediumGeneratorBenchmark extends Bench.OfflineReport with GeneratorBenchma
   listWorkers.foreach { partitionNumber =>
 
     //A graph is created for each number of partitions to measure
-    performance of "Graph with " + partitionNumber + " worker(s)" in {
+    performance of "Graph with " + partitionNumber + " partition(s)" in {
       exec.independentSamples -> partitionNumber //Run in different JVM, regarding number of partitions
 
       val elementsGen = Gen.range("size")(initElements, incrementElements*iterations, incrementElements)
@@ -116,7 +118,7 @@ trait HighGeneratorBenchmark extends Bench.OfflineReport with GeneratorBenchmark
   listWorkers.foreach { partitionNumber =>
 
     //A graph is created for each number of partitions to measure
-    performance of "Graph with " + partitionNumber + " worker(s)" in {
+    performance of "Graph with " + partitionNumber + " partition(s)" in {
       exec.independentSamples -> partitionNumber //Run in different JVM, regarding number of partitions
 
       val elementsGen = Gen.range("size")(initElements, incrementElements*iterations, incrementElements)
@@ -155,7 +157,7 @@ trait HugeGeneratorBenchmark extends Bench.OfflineReport with GeneratorBenchmark
   listWorkers.foreach { partitionNumber =>
 
     //A graph is created for each number of partitions to measure
-    performance of "Graph with " + partitionNumber + " worker(s)" in {
+    performance of "Graph with " + partitionNumber + " partition(s)" in {
       exec.independentSamples -> partitionNumber //Run in different JVM, regarding number of partitions
 
       val elementsGen = Gen.range("size")(initElements, incrementElements*iterations, incrementElements)
@@ -170,6 +172,44 @@ trait HugeGeneratorBenchmark extends Bench.OfflineReport with GeneratorBenchmark
         exec.benchRuns -> 30
       ) in {
         value => propertyToSize(value/partitionNumber, partitionNumber).check(Test.Parameters.default.withMinSuccessfulTests(1))
+      }
+    }
+  }
+}
+
+
+
+/**
+ * Creates a Benchmark with a high range of elements
+ */
+trait LinealEquation extends Bench.OfflineReport with GeneratorBenchmarkTrait {
+
+  override val initElements = 100
+  override val incrementElements = 500
+  override val iterations = 10
+  override val maxPartitions = 8
+  override val rangePartitions = 2
+
+  override implicit lazy val env: ExecutionEnvironment = ExecutionEnvironment.getExecutionEnvironment
+  private var listWorkers: List[Int] = (0 to maxPartitions by rangePartitions).toList
+
+  listWorkers = listWorkers.updated(0,1)
+  listWorkers.foreach { partitionNumber =>
+
+    //A graph is created for each number of partitions to measure
+    performance of "Graph with " + partitionNumber + " partition(s)" in {
+      exec.independentSamples -> partitionNumber //Run in different JVM, regarding number of partitions
+
+      val elementsGen = Gen.range("size")(initElements, incrementElements*iterations, incrementElements)
+      val elementsNumber = for {
+        elementNumber <- elementsGen
+      } yield elementNumber
+
+      //First, make some warmup for each JVM
+      using(elementsNumber) config (
+        exec.benchRuns -> 30
+      ) in {
+        value => lineadFunct(getGameDataset(value/partitionNumber, partitionNumber), 2000)
       }
     }
   }
