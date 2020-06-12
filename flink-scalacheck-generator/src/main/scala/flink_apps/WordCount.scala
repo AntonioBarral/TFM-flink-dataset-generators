@@ -39,12 +39,12 @@ object WordCount {
     counts.collect()
   }
 
-  def wordCountTableCalc(tableSample: Table, frequency: Long)(implicit tEnv: BatchTableEnvironment): DataSet[WC] = {
+  def wordCountTableCalc(tableSample: Table, desired_frequency: Long)(implicit tEnv: BatchTableEnvironment): DataSet[WC] = {
 
     val result = tableSample
       .groupBy('word)
       .select('word, 'frequency.sum as 'frequency)
-      .filter('frequency === frequency)
+      .filter('frequency === desired_frequency)
       .toDataSet[WC]
 
     result

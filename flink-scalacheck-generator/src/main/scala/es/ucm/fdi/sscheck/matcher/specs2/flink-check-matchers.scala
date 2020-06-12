@@ -1,5 +1,7 @@
 /** The following code belongs to contributors from project flink-check. Link: https://github.com/demiourgoi/flink-check
 
+minusWithInMemoryPartition and beSubDataSetOf functions has been refactorized and nonStrictComparison, strictComparison, beEqualDataSetTo,
+nonBeEqualDataSetTo, nonBeSubDataSetOf functions has been implemented
  */
 package es.ucm.fdi.sscheck.matcher.specs2
 

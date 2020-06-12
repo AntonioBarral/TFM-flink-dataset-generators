@@ -117,7 +117,7 @@ class WordCountTestSpecs extends org.specs2.mutable.Specification with ScalaChec
   private val genElementst1 = Gen.choose(0,100)
   private val genElementst2 = Gen.choose(0,100)
 
-  "Generate Table test" >> Prop.forAll(genElementst1, genElementst2) {
+  "The Table val with a greater number of elements will be the one returned by Word Count program " >> Prop.forAll(genElementst1, genElementst2) {
     (elementsT1: Int, elementsT2: Int) =>
       (elementsT1 != elementsT2) ==> {
         val t1 = createTableGenerator("foo", elementsT1).sample.get
