@@ -40,35 +40,22 @@ trait GeneratorBenchmarkTrait {
   }
 
 
-  def lineadFunct(gameDataset: DataSet[Game], filterYear: Int): List[String] = {
+  def linearFunct(gameDataset: DataSet[Game], filterYear: Int): Long = {
     val result = gameDataset
       .filter(game => game.launchYear >= filterYear)
-      .map(game => game.name).collect()
+      .map(game => game.name).count()
 
-    result.toList
+    result
   }
 
-  /*def cuadraticFunct(gameDataset: DataSet[Game]): List[(String, String, Double)] = {
+  def quadraticFunct(gameDataset: DataSet[Game], partitions: Int): Long = {
     val result = gameDataset
-        .groupBy(xs => (xs.pegi, xs.gender))
-        .reduceGroup  {
-          (in, out: Collector[(String, String, Double)]) =>
-            var total = 0.0
-            var pegi = 0
-            var gender = ""
-            var number = 0
-
-            in.foreach({ xs =>
-              total +=  xs.score
-              pegi = xs.pegi
-              gender = xs.gender
-              number += 1
-            })
-
-            out.collect(("PEGI " + pegi, "Gender " + gender, total/number))
-        }.collect().toList
+        .cross(gameDataset)
+        .filter(xs => xs._1.name == xs._2.name)
+        .map(xs => xs._1)
+        .count()
     result
-  }*/
+  }
 
   def getGameDataset(elementsPerPartition: Int, partitions: Int): DataSet[Game] = {
     val gameGen = for {
