@@ -51,7 +51,7 @@ class KMeansTestSpecs extends org.specs2.mutable.Specification with ScalaCheck w
     Prop.forAll(initialCentroidGen, numCentroidsGen, iterationsGen, centroidsDistanceGen) {
       (initialCentroid: Centroid, numCentroids: Int, iterations: Int, centroidsDistance: Int) =>
 
-        val pointsInRadiusGen: Gen[Int] = Gen.choose(1, centroidsDistance/2)
+        val pointsInRadiusGen: Gen[Int] = Gen.choose(1, Math.round(centroidsDistance/2.0).toInt - 1)
         var centroids: List[Centroid] = List(initialCentroid)
 
         //Fill points DataSet for the initial centroid

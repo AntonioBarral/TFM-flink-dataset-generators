@@ -285,7 +285,7 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
   val toIntFunct = new TableApiUDF.ToInt()
 
 
-  //ETL tests
+  //TPCH test
   "Using API table over generated Gen[DataSet[A]], produces the same result when TPCHQuery is calculated with flink example function, using the same generated datasets" >>
     Prop.forAll(customersGen, ordersGen, lineItemsGen, nationsGen) {
       (dCustomer: DataSet[Customer], dOrders: DataSet[Order], dLineItem: DataSet[Lineitem], dNations: DataSet[Nation]) =>
@@ -312,8 +312,6 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
         val datasetApiResult: DataSet[(Long, String, String, String, Double, Double)] = tEnv.toDataSet[(Long, String, String, String, Double, Double)](tableApiResult)
 
         datasetApiResult must flink.DataSetMatchers.beEqualDataSetTo(resultTPCH)
-
-
     }.set(minTestsOk = 20)
 
 
@@ -447,7 +445,8 @@ class TPCHQuery10TestSpecs extends org.specs2.mutable.Specification with ScalaCh
             .union(createDifferentFieldTypesCustomer(parseErrorList))
             .union(validCustomerDataset.map(xs => toCSVFormat(xs)))
 
-          checkCustomerETLProperties(wholeDataset, dataTypeValidation = false).collect() must throwA[Exception]
+          checkCustomerETLProperties(wholeDataset, dataTypeValidation = false)
+            .collect() must throwA[Exception]
         }
 
     }.set(minTestsOk = 100)
